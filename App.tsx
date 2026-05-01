@@ -1,7 +1,9 @@
 import { StatusBar } from 'expo-status-bar';
-import { useMemo, useState } from 'react';
+import { type ComponentProps, useEffect, useMemo, useState } from 'react';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import {
   Modal,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -10,6 +12,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 
 import {
@@ -26,8 +29,9 @@ import {
   type GigCategory,
   type UserRole,
 } from './src/data/mockData';
-import { colors, radii, shadow, spacing } from './src/theme';
+import { colors, fonts, radii, shadow, spacing } from './src/theme';
 
+type IconName = ComponentProps<typeof Ionicons>['name'];
 type WorkerTab = 'discover' | 'requests' | 'account';
 type PosterTab = 'overview' | 'post' | 'requests' | 'account';
 type AdminTab = 'overview' | 'gigs' | 'requests' | 'account';
@@ -46,7 +50,68 @@ const initialLoginForm = {
   password: '',
 };
 
+const roleOptions: Array<{
+  key: UserRole;
+  label: string;
+  title: string;
+  note: string;
+  icon: IconName;
+}> = [
+  {
+    key: 'worker',
+    label: 'Worker',
+    title: 'Find work',
+    note: 'Browse paid local briefs',
+    icon: 'search-outline',
+  },
+  {
+    key: 'poster',
+    label: 'Poster',
+    title: 'Hire talent',
+    note: 'Post and shortlist fast',
+    icon: 'briefcase-outline',
+  },
+  {
+    key: 'admin',
+    label: 'Admin',
+    title: 'Operate',
+    note: 'Monitor marketplace health',
+    icon: 'shield-checkmark-outline',
+  },
+];
+
+const trustSignals: Array<{ label: string; icon: IconName }> = [
+  { label: 'Clear payouts', icon: 'card-outline' },
+  { label: 'Request threads', icon: 'chatbubbles-outline' },
+  { label: 'Local verification', icon: 'checkmark-circle-outline' },
+];
+
+const categoryIcons: Record<GigCategory, IconName> = {
+  All: 'grid-outline',
+  Delivery: 'bicycle-outline',
+  Events: 'calendar-clear-outline',
+  Campus: 'school-outline',
+  'Home Help': 'home-outline',
+  Promo: 'megaphone-outline',
+};
+
+const quickStatIcons: IconName[] = ['briefcase-outline', 'wallet-outline', 'time-outline'];
+
+const formatPay = (pay: number) => `Rs ${pay.toLocaleString('en-IN')}`;
+
+const IconGlyph = ({
+  name,
+  size = 18,
+  color = colors.textSecondary,
+}: {
+  name: IconName;
+  size?: number;
+  color?: string;
+}) => <Ionicons name={name} size={size} color={color} />;
+
 export default function App() {
+  const { width } = useWindowDimensions();
+  const isWideLayout = width >= 900;
   const [authUser, setAuthUser] = useState<DemoUser | null>(null);
   const [selectedRole, setSelectedRole] = useState<UserRole>('worker');
   const [workerTab, setWorkerTab] = useState<WorkerTab>('discover');
@@ -63,6 +128,32 @@ export default function App() {
   const [requestMessageDraft, setRequestMessageDraft] = useState('');
   const [chatDrafts, setChatDrafts] = useState<Record<string, string>>({});
   const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      return;
+    }
+
+    const webDocument = globalThis.document;
+
+    if (!webDocument) {
+      return;
+    }
+
+    const previousHtmlBackground = webDocument.documentElement.style.backgroundColor;
+    const previousBodyBackground = webDocument.body.style.backgroundColor;
+    const previousBodyMargin = webDocument.body.style.margin;
+
+    webDocument.documentElement.style.backgroundColor = colors.background;
+    webDocument.body.style.backgroundColor = colors.background;
+    webDocument.body.style.margin = '0';
+
+    return () => {
+      webDocument.documentElement.style.backgroundColor = previousHtmlBackground;
+      webDocument.body.style.backgroundColor = previousBodyBackground;
+      webDocument.body.style.margin = previousBodyMargin;
+    };
+  }, []);
 
   const filteredGigs = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -215,7 +306,7 @@ export default function App() {
     setGigs((current) => [newGig, ...current]);
     setGigForm(initialGigForm);
     setPosterTab('overview');
-    setMessage('Gig published. Workers can now message you through requests.');
+    setMessage('Brief published. Applicant requests are open.');
   };
 
   const handleSendRequest = () => {
@@ -258,7 +349,7 @@ export default function App() {
     setRequestMessageDraft('');
     setActiveRequestId(newRequest.id);
     setWorkerTab('requests');
-    setMessage('Request sent. You can continue the conversation in your messages.');
+    setMessage('Request sent. The thread is now active.');
   };
 
   const handleSendChatMessage = (requestId: string) => {
@@ -341,12 +432,80 @@ export default function App() {
     );
   };
 
+  const renderStatusBadge = (status: Gig['status'] | ApplicationRequest['status']) => {
+    const statusStyle =
+      status === 'Open'
+        ? styles.statusBadgeOpen
+        : status === 'Accepted'
+          ? styles.statusBadgeAccepted
+          : status === 'Rejected'
+            ? styles.statusBadgeRejected
+            : status === 'Assigned'
+              ? styles.statusBadgeAssigned
+              : styles.statusBadgePending;
+
+    const statusTextStyle =
+      status === 'Open' || status === 'Accepted'
+        ? styles.statusBadgeTextPositive
+        : status === 'Rejected'
+          ? styles.statusBadgeTextRejected
+          : status === 'Assigned'
+            ? styles.statusBadgeTextAssigned
+            : styles.statusBadgeTextPending;
+    const statusIcon: IconName =
+      status === 'Open'
+        ? 'radio-button-on-outline'
+        : status === 'Accepted'
+          ? 'checkmark-circle-outline'
+          : status === 'Rejected'
+            ? 'close-circle-outline'
+            : status === 'Assigned'
+              ? 'ribbon-outline'
+              : 'hourglass-outline';
+    const statusIconColor =
+      status === 'Open' || status === 'Accepted'
+        ? colors.success
+        : status === 'Rejected'
+          ? colors.error
+          : status === 'Assigned'
+            ? colors.blueText
+            : colors.badgeText;
+
+    return (
+      <View style={[styles.statusBadge, statusStyle]}>
+        <IconGlyph name={statusIcon} size={12} color={statusIconColor} />
+        <Text style={[styles.statusBadgeText, statusTextStyle]}>{status}</Text>
+      </View>
+    );
+  };
+
+  const renderPanelHeader = (eyebrow: string, title: string, action?: string) => (
+    <View style={styles.panelHeader}>
+      <View style={styles.activityContent}>
+        <Text style={styles.sectionEyebrow}>{eyebrow}</Text>
+        <Text style={styles.sectionTitle}>{title}</Text>
+      </View>
+      {action ? <Text style={styles.panelAction}>{action}</Text> : null}
+    </View>
+  );
+
   const renderTopBar = () =>
     authUser ? (
       <View style={styles.topBar}>
-        <View>
-          <Text style={styles.topBarName}>{authUser.name}</Text>
-          <Text style={styles.topBarRole}>{authUser.role}</Text>
+        <View style={styles.topBarBrand}>
+          <View style={styles.brandMarkSmall}>
+            <IconGlyph name="flash-outline" size={17} color={colors.textOnAccent} />
+          </View>
+          <Text style={styles.topBarBrandText}>QuickGig</Text>
+        </View>
+        <View style={styles.topBarIdentity}>
+          <View style={styles.userAvatar}>
+            <Text style={styles.userAvatarText}>{authUser.name.slice(0, 1)}</Text>
+          </View>
+          <View>
+            <Text style={styles.topBarName}>{authUser.name}</Text>
+            <Text style={styles.topBarRole}>{authUser.role}</Text>
+          </View>
         </View>
         <Pressable style={styles.topBarLogout} onPress={handleLogout}>
           <Text style={styles.topBarLogoutText}>Logout</Text>
@@ -355,24 +514,31 @@ export default function App() {
     ) : null;
 
   const renderRolePicker = () => (
-    <View style={styles.roleRow}>
-      {[
-        { key: 'worker', label: 'Worker' },
-        { key: 'poster', label: 'Poster' },
-        { key: 'admin', label: 'Admin' },
-      ].map((item) => {
+    <View style={[styles.roleRow, isWideLayout && styles.roleRowWide]}>
+      {roleOptions.map((item) => {
         const active = selectedRole === item.key;
 
         return (
           <Pressable
             key={item.key}
             onPress={() => {
-              setSelectedRole(item.key as UserRole);
+              setSelectedRole(item.key);
               setMessage('');
             }}
             style={[styles.roleChip, active && styles.roleChipActive]}
           >
-            <Text style={[styles.roleChipText, active && styles.roleChipTextActive]}>{item.label}</Text>
+            <View style={styles.roleIconRow}>
+              <View style={[styles.roleIconBubble, active && styles.roleIconBubbleActive]}>
+                <IconGlyph
+                  name={item.icon}
+                  size={17}
+                  color={active ? colors.textOnAccent : colors.accentHover}
+                />
+              </View>
+              <Text style={[styles.roleChipLabel, active && styles.roleChipTextActive]}>{item.label}</Text>
+            </View>
+            <Text style={[styles.roleChipText, active && styles.roleChipTextActive]}>{item.title}</Text>
+            <Text style={[styles.roleChipNote, active && styles.roleChipNoteActive]}>{item.note}</Text>
           </Pressable>
         );
       })}
@@ -381,40 +547,87 @@ export default function App() {
 
   const renderLogin = () => (
     <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-      <View style={styles.loginHero}>
-        <Text style={styles.loginEyebrow}>Quick Gig</Text>
-        <Text style={styles.loginTitle}>Simple sign in for workers, posters, and admins.</Text>
-        <Text style={styles.loginSubtitle}>
-          A cleaner login, built-in request chat, and a sharper UI for a more deployment-ready demo.
-        </Text>
-      </View>
+      <View style={styles.marketHero}>
+        <View style={styles.loginNav}>
+          <View style={styles.brandRow}>
+            <View style={styles.brandMark}>
+              <IconGlyph name="flash-outline" size={22} color={colors.textOnAccent} />
+            </View>
+            <View>
+              <Text style={styles.loginEyebrow}>QuickGig</Text>
+              <Text style={styles.brandSubline}>Local work marketplace</Text>
+            </View>
+          </View>
+          <View style={styles.navBadge}>
+            <IconGlyph name="location-outline" size={13} color={colors.accentSoftText} />
+            <Text style={styles.navBadgeText}>Bengaluru beta</Text>
+          </View>
+        </View>
 
-      <View style={styles.loginCard}>
-        {renderRolePicker()}
-        <TextInput
-          value={loginForm.username}
-          onChangeText={(value) => setLoginForm((current) => ({ ...current, username: value }))}
-          placeholder="Username"
-          placeholderTextColor={colors.muted}
-          autoCapitalize="none"
-          style={styles.cleanInput}
-        />
-        <TextInput
-          value={loginForm.password}
-          onChangeText={(value) => setLoginForm((current) => ({ ...current, password: value }))}
-          placeholder="Password"
-          placeholderTextColor={colors.muted}
-          secureTextEntry
-          style={styles.cleanInput}
-        />
-        <Pressable style={styles.primaryButton} onPress={handleLogin}>
-          <Text style={styles.primaryButtonText}>Sign In</Text>
-        </Pressable>
+        <View style={[styles.heroGrid, isWideLayout && styles.heroGridWide]}>
+          <View style={styles.loginHero}>
+            <Text style={styles.heroKicker}>Short-term jobs. Real conversations. Fast hiring.</Text>
+            <Text style={[styles.loginTitle, !isWideLayout && styles.loginTitleCompact]}>
+              The marketplace for trusted local gigs.
+            </Text>
+            <Text style={styles.loginSubtitle}>
+              Find paid assignments, post work briefs, and manage requests from one polished workspace.
+            </Text>
+            <View style={styles.trustRow}>
+              {trustSignals.map((signal) => (
+                <View key={signal.label} style={styles.trustPill}>
+                  <IconGlyph name={signal.icon} size={15} color={colors.accentHover} />
+                  <Text style={styles.trustText}>{signal.label}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          <View style={[styles.loginCard, isWideLayout && styles.loginCardWide]}>
+            <Text style={styles.loginCardTitle}>Access workspace</Text>
+            <Text style={styles.loginCardText}>{roleOptions.find((role) => role.key === selectedRole)?.note}</Text>
+            {renderRolePicker()}
+            <TextInput
+              value={loginForm.username}
+              onChangeText={(value) => setLoginForm((current) => ({ ...current, username: value }))}
+              placeholder="Username"
+              placeholderTextColor={colors.muted}
+              autoCapitalize="none"
+              style={styles.cleanInput}
+            />
+            <TextInput
+              value={loginForm.password}
+              onChangeText={(value) => setLoginForm((current) => ({ ...current, password: value }))}
+              placeholder="Password"
+              placeholderTextColor={colors.muted}
+              secureTextEntry
+              style={styles.cleanInput}
+            />
+            <Pressable style={styles.primaryButton} onPress={handleLogin}>
+              <View style={styles.buttonContent}>
+                <Text style={styles.primaryButtonText}>Sign in</Text>
+                <IconGlyph name="arrow-forward-outline" size={17} color={colors.textOnAccent} />
+              </View>
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.categoryShowcase}>
+          {postableCategories.map((category) => (
+            <View key={category} style={styles.categoryShowcaseItem}>
+              <IconGlyph name={categoryIcons[category]} size={15} color={colors.textSecondary} />
+              <Text style={styles.categoryShowcaseText}>{category}</Text>
+            </View>
+          ))}
+        </View>
       </View>
 
       <View style={styles.miniGrid}>
-        {quickStats.map((item) => (
+        {quickStats.map((item, index) => (
           <View key={item.label} style={styles.miniCard}>
+            <View style={styles.statIconBubble}>
+              <IconGlyph name={quickStatIcons[index]} size={18} color={colors.accentHover} />
+            </View>
             <Text style={styles.miniCardValue}>{item.value}</Text>
             <Text style={styles.miniCardLabel}>{item.label}</Text>
           </View>
@@ -422,8 +635,7 @@ export default function App() {
       </View>
 
       <View style={styles.formCard}>
-        <Text style={styles.sectionTitle}>Demo accounts</Text>
-        <Text style={styles.sectionText}>Tap one to autofill credentials for quick testing.</Text>
+        {renderPanelHeader('Workspaces', 'Continue with a saved profile', `${roleAccounts.length} available`)}
         {roleAccounts.map((account) => (
           <Pressable
             key={account.id}
@@ -435,15 +647,17 @@ export default function App() {
           >
             <View>
               <Text style={styles.demoUserName}>{account.name}</Text>
-              <Text style={styles.demoUserMeta}>{account.username}</Text>
+              <Text style={styles.demoUserMeta}>
+                @{account.username} • {account.role}
+              </Text>
             </View>
-            <Text style={styles.demoUserAction}>Use</Text>
+            <Text style={styles.demoUserAction}>Open</Text>
           </Pressable>
         ))}
       </View>
 
       <View style={styles.formCard}>
-        <Text style={styles.sectionTitle}>What changed</Text>
+        {renderPanelHeader('Marketplace quality', 'Built for short-term hiring')}
         {featuredTips.map((tip) => (
           <View key={tip.title} style={styles.tipRow}>
             <Text style={styles.tipRowTitle}>{tip.title}</Text>
@@ -457,9 +671,9 @@ export default function App() {
   const renderWorkerTabs = () => (
     <View style={styles.tabRow}>
       {[
-        { key: 'discover', label: 'Discover' },
-        { key: 'requests', label: 'Messages' },
-        { key: 'account', label: 'Account' },
+        { key: 'discover', label: 'Discover', icon: 'compass-outline' as IconName },
+        { key: 'requests', label: 'Messages', icon: 'chatbubble-ellipses-outline' as IconName },
+        { key: 'account', label: 'Account', icon: 'person-circle-outline' as IconName },
       ].map((tab) => {
         const active = workerTab === tab.key;
         return (
@@ -468,6 +682,7 @@ export default function App() {
             onPress={() => setWorkerTab(tab.key as WorkerTab)}
             style={[styles.tabButton, active && styles.tabButtonActive]}
           >
+            <IconGlyph name={tab.icon} size={16} color={active ? colors.accentHover : colors.textMuted} />
             <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{tab.label}</Text>
           </Pressable>
         );
@@ -478,10 +693,10 @@ export default function App() {
   const renderPosterTabs = () => (
     <View style={styles.tabRow}>
       {[
-        { key: 'overview', label: 'Overview' },
-        { key: 'post', label: 'Post' },
-        { key: 'requests', label: 'Messages' },
-        { key: 'account', label: 'Account' },
+        { key: 'overview', label: 'Overview', icon: 'analytics-outline' as IconName },
+        { key: 'post', label: 'Post', icon: 'add-circle-outline' as IconName },
+        { key: 'requests', label: 'Messages', icon: 'mail-unread-outline' as IconName },
+        { key: 'account', label: 'Account', icon: 'person-circle-outline' as IconName },
       ].map((tab) => {
         const active = posterTab === tab.key;
         return (
@@ -490,6 +705,7 @@ export default function App() {
             onPress={() => setPosterTab(tab.key as PosterTab)}
             style={[styles.tabButton, active && styles.tabButtonActive]}
           >
+            <IconGlyph name={tab.icon} size={16} color={active ? colors.accentHover : colors.textMuted} />
             <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{tab.label}</Text>
           </Pressable>
         );
@@ -500,10 +716,10 @@ export default function App() {
   const renderAdminTabs = () => (
     <View style={styles.tabRow}>
       {[
-        { key: 'overview', label: 'Overview' },
-        { key: 'gigs', label: 'Gigs' },
-        { key: 'requests', label: 'Requests' },
-        { key: 'account', label: 'Account' },
+        { key: 'overview', label: 'Overview', icon: 'speedometer-outline' as IconName },
+        { key: 'gigs', label: 'Briefs', icon: 'documents-outline' as IconName },
+        { key: 'requests', label: 'Requests', icon: 'git-pull-request-outline' as IconName },
+        { key: 'account', label: 'Account', icon: 'person-circle-outline' as IconName },
       ].map((tab) => {
         const active = adminTab === tab.key;
         return (
@@ -512,6 +728,7 @@ export default function App() {
             onPress={() => setAdminTab(tab.key as AdminTab)}
             style={[styles.tabButton, active && styles.tabButtonActive]}
           >
+            <IconGlyph name={tab.icon} size={16} color={active ? colors.accentHover : colors.textMuted} />
             <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{tab.label}</Text>
           </Pressable>
         );
@@ -521,15 +738,17 @@ export default function App() {
 
   const renderAccountCard = () => (
     <View style={styles.formCard}>
-      <Text style={styles.sectionTitle}>Account</Text>
-      <Text style={styles.sectionText}>This demo keeps login simple while preserving role-based access.</Text>
+      {renderPanelHeader('Profile', 'Account details')}
       <View style={styles.accountCard}>
         <Text style={styles.accountLine}>Name: {authUser?.name}</Text>
         <Text style={styles.accountLine}>Username: {authUser?.username}</Text>
         <Text style={styles.accountLine}>Role: {authUser?.role}</Text>
       </View>
       <Pressable style={styles.logoutButton} onPress={handleLogout}>
-        <Text style={styles.primaryButtonText}>Logout</Text>
+        <View style={styles.buttonContent}>
+          <IconGlyph name="log-out-outline" size={17} color={colors.textOnAccent} />
+          <Text style={styles.primaryButtonText}>Logout</Text>
+        </View>
       </Pressable>
     </View>
   );
@@ -540,15 +759,18 @@ export default function App() {
         <View style={styles.activityContent}>
           <Text style={styles.requestGigTitle}>{request.gigTitle}</Text>
           <Text style={styles.chatMeta}>
-            {request.workerName} - {request.status}
+            {request.workerName}
           </Text>
         </View>
+        {renderStatusBadge(request.status)}
         {canModerate ? (
           <View style={styles.chatDecisionRow}>
             <Pressable style={styles.acceptButton} onPress={() => handleRequestDecision(request.id, 'Accepted')}>
+              <IconGlyph name="checkmark-outline" size={14} color={colors.textPrimary} />
               <Text style={styles.chatDecisionText}>Accept</Text>
             </Pressable>
             <Pressable style={styles.rejectPill} onPress={() => handleRequestDecision(request.id, 'Rejected')}>
+              <IconGlyph name="close-outline" size={14} color={colors.textPrimary} />
               <Text style={styles.chatDecisionText}>Reject</Text>
             </Pressable>
           </View>
@@ -582,15 +804,24 @@ export default function App() {
         style={[styles.cleanInput, styles.chatInput]}
       />
       <Pressable style={styles.primaryButton} onPress={() => handleSendChatMessage(request.id)}>
-        <Text style={styles.primaryButtonText}>Send Message</Text>
+        <View style={styles.buttonContent}>
+          <IconGlyph name="send-outline" size={17} color={colors.textOnAccent} />
+          <Text style={styles.primaryButtonText}>Send Message</Text>
+        </View>
       </Pressable>
     </View>
   );
 
   const renderWorkerView = () => (
     <ScrollView contentContainerStyle={styles.appScrollContent} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerPanel}>
-        <Text style={styles.headerEyebrow}>Worker space</Text>
+        <View style={styles.headerPanel}>
+          <View style={styles.headerTopLine}>
+            <Text style={styles.headerEyebrow}>Worker marketplace</Text>
+            <View style={styles.headerBadge}>
+              <IconGlyph name="pulse-outline" size={13} color={colors.accentSoftText} />
+              <Text style={styles.headerBadgeText}>Live briefs</Text>
+            </View>
+          </View>
         <Text style={styles.headerTitle}>{authUser?.headline}</Text>
         <Text style={styles.headerSubtitle}>{authUser?.subline}</Text>
       </View>
@@ -598,15 +829,12 @@ export default function App() {
 
       {workerTab === 'discover' ? (
         <View style={styles.sectionStack}>
-          <View style={styles.surfaceCard}>
-            <Text style={styles.sectionTitle}>Find short gigs</Text>
-            <Text style={styles.sectionText}>
-              Browse local work, then send a request and continue the conversation in messages.
-            </Text>
+          <View style={styles.searchPanel}>
+            {renderPanelHeader('Explore', 'Recommended gigs', `${filteredGigs.length} matches`)}
             <TextInput
               value={search}
               onChangeText={setSearch}
-              placeholder="Search gigs or locations"
+              placeholder="Search by skill, location, or task"
               placeholderTextColor={colors.muted}
               style={styles.cleanInput}
             />
@@ -619,6 +847,11 @@ export default function App() {
                     onPress={() => setSelectedCategory(category)}
                     style={[styles.categoryChip, selected && styles.categoryChipActive]}
                   >
+                    <IconGlyph
+                      name={categoryIcons[category]}
+                      size={15}
+                      color={selected ? colors.accentHover : colors.textMuted}
+                    />
                     <Text style={[styles.categoryChipText, selected && styles.categoryChipTextActive]}>
                       {category}
                     </Text>
@@ -630,21 +863,58 @@ export default function App() {
 
           {filteredGigs.map((gig) => (
             <Pressable key={gig.id} style={styles.jobCard} onPress={() => setSelectedGig(gig)}>
+              <View style={styles.jobCardTop}>
+                <View style={styles.posterMini}>
+                  <View style={styles.posterAvatar}>
+                    <IconGlyph name="business-outline" size={18} color={colors.textPrimary} />
+                  </View>
+                  <View>
+                    <Text style={styles.jobPoster}>{gig.postedBy}</Text>
+                    <Text style={styles.jobTrust}>Rated {gig.rating.toFixed(1)} by local workers</Text>
+                  </View>
+                </View>
+                {renderStatusBadge(gig.status)}
+              </View>
               <View style={styles.jobCardHeader}>
                 <View style={styles.activityContent}>
                   <Text style={styles.jobCategory}>{gig.category}</Text>
                   <Text style={styles.jobTitle}>{gig.title}</Text>
+                  <Text style={styles.jobDescription} numberOfLines={2}>
+                    {gig.description}
+                  </Text>
                 </View>
-                <View style={styles.amountPill}>
-                  <Text style={styles.amountPillText}>Rs {gig.pay}</Text>
+                <View style={styles.amountBlock}>
+                  <View style={styles.amountLabelRow}>
+                    <IconGlyph name="cash-outline" size={13} color={colors.textMuted} />
+                    <Text style={styles.amountLabel}>Fixed payout</Text>
+                  </View>
+                  <Text style={styles.amountPillText}>{formatPay(gig.pay)}</Text>
                 </View>
               </View>
-              <Text style={styles.jobMeta}>
-                {gig.location} - {gig.duration} - {gig.applicants} applicants
-              </Text>
-              <Text style={styles.jobDescription} numberOfLines={2}>
-                {gig.description}
-              </Text>
+              <View style={styles.jobMetaRow}>
+                <View style={styles.jobMetaPill}>
+                  <IconGlyph name="location-outline" size={14} color={colors.textMuted} />
+                  <Text style={styles.jobMetaPillText}>{gig.location}</Text>
+                </View>
+                <View style={styles.jobMetaPill}>
+                  <IconGlyph name="time-outline" size={14} color={colors.textMuted} />
+                  <Text style={styles.jobMetaPillText}>{gig.duration}</Text>
+                </View>
+                <View style={styles.jobMetaPill}>
+                  <IconGlyph name="people-outline" size={14} color={colors.textMuted} />
+                  <Text style={styles.jobMetaPillText}>{gig.applicants} applicants</Text>
+                </View>
+              </View>
+              <View style={styles.cardFooter}>
+                <View style={styles.cardFooterMeta}>
+                  <IconGlyph name="shield-checkmark-outline" size={15} color={colors.textMuted} />
+                  <Text style={styles.cardFooterText}>Shortlist-ready local brief</Text>
+                </View>
+                <View style={styles.cardFooterMeta}>
+                  <Text style={styles.cardFooterAction}>View brief</Text>
+                  <IconGlyph name="arrow-forward-outline" size={15} color={colors.accentHover} />
+                </View>
+              </View>
             </Pressable>
           ))}
         </View>
@@ -654,7 +924,7 @@ export default function App() {
         <View style={styles.sectionStack}>
           <View style={styles.messageLayout}>
             <View style={styles.messageListCard}>
-              <Text style={styles.sectionTitle}>My messages</Text>
+              {renderPanelHeader('Inbox', 'Request threads', `${workerRequests.length} active`)}
               {workerRequests.map((request) => {
                 const selected = activeRequestId === request.id;
 
@@ -664,8 +934,15 @@ export default function App() {
                     style={[styles.messageListItem, selected && styles.messageListItemActive]}
                     onPress={() => setActiveRequestId(request.id)}
                   >
-                    <Text style={styles.messageListTitle}>{request.gigTitle}</Text>
-                    <Text style={styles.messageListMeta}>{request.status}</Text>
+                    <View style={styles.messageListTop}>
+                      <IconGlyph
+                        name="chatbubble-ellipses-outline"
+                        size={16}
+                        color={selected ? colors.accentHover : colors.textMuted}
+                      />
+                      <Text style={styles.messageListTitle}>{request.gigTitle}</Text>
+                    </View>
+                    <Text style={styles.messageListMeta}>{request.status} • {request.workerName}</Text>
                   </Pressable>
                 );
               })}
@@ -674,9 +951,9 @@ export default function App() {
               renderRequestConversation(activeRequest, false)
             ) : (
               <View style={styles.emptyChatCard}>
-                <Text style={styles.emptyChatTitle}>Open a conversation</Text>
+                <Text style={styles.emptyChatTitle}>No thread selected</Text>
                 <Text style={styles.emptyChatText}>
-                  Choose a request to view your messages with the poster.
+                  Request history, poster notes, and replies stay grouped by gig.
                 </Text>
               </View>
             )}
@@ -698,20 +975,35 @@ export default function App() {
     return (
       <ScrollView contentContainerStyle={styles.appScrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.headerPanel}>
-          <Text style={styles.headerEyebrow}>Poster space</Text>
+          <View style={styles.headerTopLine}>
+            <Text style={styles.headerEyebrow}>Poster workspace</Text>
+            <View style={styles.headerBadge}>
+              <IconGlyph name="briefcase-outline" size={13} color={colors.accentSoftText} />
+              <Text style={styles.headerBadgeText}>Hiring board</Text>
+            </View>
+          </View>
           <Text style={styles.headerTitle}>{authUser?.headline}</Text>
           <Text style={styles.headerSubtitle}>{authUser?.subline}</Text>
         </View>
         <View style={styles.miniGrid}>
           <View style={styles.miniCard}>
+            <View style={styles.statIconBubble}>
+              <IconGlyph name="briefcase-outline" size={18} color={colors.accentHover} />
+            </View>
             <Text style={styles.miniCardValue}>{stats.gigs}</Text>
             <Text style={styles.miniCardLabel}>Your gigs</Text>
           </View>
           <View style={styles.miniCard}>
+            <View style={styles.statIconBubble}>
+              <IconGlyph name="radio-button-on-outline" size={18} color={colors.accentHover} />
+            </View>
             <Text style={styles.miniCardValue}>{stats.open}</Text>
             <Text style={styles.miniCardLabel}>Open</Text>
           </View>
           <View style={styles.miniCard}>
+            <View style={styles.statIconBubble}>
+              <IconGlyph name="people-outline" size={18} color={colors.accentHover} />
+            </View>
             <Text style={styles.miniCardValue}>{stats.requests}</Text>
             <Text style={styles.miniCardLabel}>Pending</Text>
           </View>
@@ -720,17 +1012,18 @@ export default function App() {
 
         {posterTab === 'overview' ? (
           <View style={styles.surfaceCard}>
-            <Text style={styles.sectionTitle}>Your active gigs</Text>
+            {renderPanelHeader('Manage', 'Your active briefs', `${posterOwnedGigs.length} listed`)}
             {posterOwnedGigs.map((gig) => (
-              <View key={gig.id} style={styles.activityRow}>
+              <View key={gig.id} style={styles.managementCard}>
                 <View style={styles.activityContent}>
                   <Text style={styles.activityTitle}>{gig.title}</Text>
                   <Text style={styles.activityMeta}>
-                    {gig.location} - {gig.duration} - Rs {gig.pay}
+                    {gig.location} • {gig.duration}
                   </Text>
                 </View>
-                <View style={styles.statusBadge}>
-                  <Text style={styles.statusBadgeText}>{gig.status}</Text>
+                <View style={styles.managementSide}>
+                  <Text style={styles.managementAmount}>{formatPay(gig.pay)}</Text>
+                  {renderStatusBadge(gig.status)}
                 </View>
               </View>
             ))}
@@ -739,11 +1032,11 @@ export default function App() {
 
         {posterTab === 'post' ? (
           <View style={styles.formCard}>
-            <Text style={styles.sectionTitle}>Post a new gig</Text>
+            {renderPanelHeader('Create', 'Post a new work brief')}
             <TextInput
               value={gigForm.title}
               onChangeText={(value) => setGigForm((current) => ({ ...current, title: value }))}
-              placeholder="Gig title"
+              placeholder="Brief title"
               placeholderTextColor={colors.muted}
               style={styles.cleanInput}
             />
@@ -756,6 +1049,11 @@ export default function App() {
                     onPress={() => setGigForm((current) => ({ ...current, category }))}
                     style={[styles.categoryChip, selected && styles.categoryChipActive]}
                   >
+                    <IconGlyph
+                      name={categoryIcons[category]}
+                      size={15}
+                      color={selected ? colors.accentHover : colors.textMuted}
+                    />
                     <Text style={[styles.categoryChipText, selected && styles.categoryChipTextActive]}>
                       {category}
                     </Text>
@@ -790,14 +1088,17 @@ export default function App() {
             <TextInput
               value={gigForm.description}
               onChangeText={(value) => setGigForm((current) => ({ ...current, description: value }))}
-              placeholder="Describe the work clearly"
+              placeholder="Scope, timing, expectations, and selection criteria"
               placeholderTextColor={colors.muted}
               multiline
               textAlignVertical="top"
               style={[styles.cleanInput, styles.largeInput]}
             />
             <Pressable style={styles.primaryButton} onPress={handleCreateGig}>
-              <Text style={styles.primaryButtonText}>Publish Gig</Text>
+              <View style={styles.buttonContent}>
+                <IconGlyph name="cloud-upload-outline" size={17} color={colors.textOnAccent} />
+                <Text style={styles.primaryButtonText}>Publish Brief</Text>
+              </View>
             </Pressable>
           </View>
         ) : null}
@@ -805,7 +1106,7 @@ export default function App() {
         {posterTab === 'requests' ? (
           <View style={styles.messageLayout}>
             <View style={styles.messageListCard}>
-              <Text style={styles.sectionTitle}>Worker messages</Text>
+              {renderPanelHeader('Applicants', 'Worker messages', `${posterRequests.length} threads`)}
               {posterRequests.map((request) => {
                 const selected = activeRequestId === request.id;
 
@@ -815,8 +1116,15 @@ export default function App() {
                     style={[styles.messageListItem, selected && styles.messageListItemActive]}
                     onPress={() => setActiveRequestId(request.id)}
                   >
-                    <Text style={styles.messageListTitle}>{request.workerName}</Text>
-                    <Text style={styles.messageListMeta}>{request.gigTitle}</Text>
+                    <View style={styles.messageListTop}>
+                      <IconGlyph
+                        name="person-outline"
+                        size={16}
+                        color={selected ? colors.accentHover : colors.textMuted}
+                      />
+                      <Text style={styles.messageListTitle}>{request.workerName}</Text>
+                    </View>
+                    <Text style={styles.messageListMeta}>{request.gigTitle} • {request.status}</Text>
                   </Pressable>
                 );
               })}
@@ -825,9 +1133,9 @@ export default function App() {
               renderRequestConversation(activeRequest, true)
             ) : (
               <View style={styles.emptyChatCard}>
-                <Text style={styles.emptyChatTitle}>Open a worker conversation</Text>
+                <Text style={styles.emptyChatTitle}>No applicant selected</Text>
                 <Text style={styles.emptyChatText}>
-                  Choose a request to chat, then accept or reject the worker when you are ready.
+                  Applicant notes, decisions, and poster replies stay attached to each brief.
                 </Text>
               </View>
             )}
@@ -842,20 +1150,35 @@ export default function App() {
   const renderAdminView = () => (
     <ScrollView contentContainerStyle={styles.appScrollContent} showsVerticalScrollIndicator={false}>
       <View style={styles.headerPanel}>
-        <Text style={styles.headerEyebrow}>Admin space</Text>
+        <View style={styles.headerTopLine}>
+          <Text style={styles.headerEyebrow}>Operations</Text>
+          <View style={styles.headerBadge}>
+            <IconGlyph name="shield-checkmark-outline" size={13} color={colors.accentSoftText} />
+            <Text style={styles.headerBadgeText}>Admin control</Text>
+          </View>
+        </View>
         <Text style={styles.headerTitle}>{authUser?.headline}</Text>
         <Text style={styles.headerSubtitle}>{authUser?.subline}</Text>
       </View>
       <View style={styles.miniGrid}>
         <View style={styles.miniCard}>
+          <View style={styles.statIconBubble}>
+            <IconGlyph name="people-outline" size={18} color={colors.accentHover} />
+          </View>
           <Text style={styles.miniCardValue}>{adminStats.totalUsers}</Text>
           <Text style={styles.miniCardLabel}>Users</Text>
         </View>
         <View style={styles.miniCard}>
+          <View style={styles.statIconBubble}>
+            <IconGlyph name="storefront-outline" size={18} color={colors.accentHover} />
+          </View>
           <Text style={styles.miniCardValue}>{adminStats.liveGigs}</Text>
           <Text style={styles.miniCardLabel}>Live gigs</Text>
         </View>
         <View style={styles.miniCard}>
+          <View style={styles.statIconBubble}>
+            <IconGlyph name="time-outline" size={18} color={colors.accentHover} />
+          </View>
           <Text style={styles.miniCardValue}>{adminStats.pendingRequests}</Text>
           <Text style={styles.miniCardLabel}>Pending requests</Text>
         </View>
@@ -864,27 +1187,25 @@ export default function App() {
 
       {adminTab === 'overview' ? (
         <View style={styles.formCard}>
-          <Text style={styles.sectionTitle}>Platform overview</Text>
+          {renderPanelHeader('Overview', 'Marketplace health')}
           <Text style={styles.sectionText}>
-            This version is structured more like a deployment-ready demo: simpler sign in, clearer messaging, and cleaner role separation.
+            Live supply, request quality, and fulfillment status across the marketplace.
           </Text>
         </View>
       ) : null}
 
       {adminTab === 'gigs' ? (
         <View style={styles.surfaceCard}>
-          <Text style={styles.sectionTitle}>All gigs</Text>
+          {renderPanelHeader('Supply', 'All work briefs', `${gigs.length} total`)}
           {gigs.map((gig) => (
-            <View key={gig.id} style={styles.activityRow}>
+            <View key={gig.id} style={styles.managementCard}>
               <View style={styles.activityContent}>
                 <Text style={styles.activityTitle}>{gig.title}</Text>
                 <Text style={styles.activityMeta}>
-                  {gig.postedBy} - {gig.location} - Rs {gig.pay}
+                  {gig.postedBy} • {gig.location} • {formatPay(gig.pay)}
                 </Text>
               </View>
-              <View style={styles.statusBadge}>
-                <Text style={styles.statusBadgeText}>{gig.status}</Text>
-              </View>
+              {renderStatusBadge(gig.status)}
             </View>
           ))}
         </View>
@@ -892,15 +1213,16 @@ export default function App() {
 
       {adminTab === 'requests' ? (
         <View style={styles.surfaceCard}>
-          <Text style={styles.sectionTitle}>All requests</Text>
+          {renderPanelHeader('Demand', 'All requests', `${requests.length} total`)}
           {requests.map((request) => (
-            <View key={request.id} style={styles.activityRow}>
+            <View key={request.id} style={styles.managementCard}>
               <View style={styles.activityContent}>
                 <Text style={styles.activityTitle}>{request.workerName}</Text>
                 <Text style={styles.activityMeta}>
-                  {request.gigTitle} - {request.status}
+                  {request.gigTitle}
                 </Text>
               </View>
+              {renderStatusBadge(request.status)}
             </View>
           ))}
         </View>
@@ -912,7 +1234,7 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
       <View style={styles.appShell}>
         {renderTopBar()}
         {!authUser ? renderLogin() : null}
@@ -941,25 +1263,26 @@ export default function App() {
                       <Text style={styles.jobCategory}>{selectedGig.category}</Text>
                       <Text style={styles.modalTitle}>{selectedGig.title}</Text>
                     </View>
-                    <Pressable onPress={() => setSelectedGig(null)}>
+                    <Pressable style={styles.closeButton} onPress={() => setSelectedGig(null)}>
+                      <IconGlyph name="close-outline" size={17} color={colors.accentHover} />
                       <Text style={styles.closeText}>Close</Text>
                     </Pressable>
                   </View>
                   <Text style={styles.modalMeta}>
-                    {selectedGig.location} - {selectedGig.duration} - Rs {selectedGig.pay}
+                    {selectedGig.location} • {selectedGig.duration} • {formatPay(selectedGig.pay)}
                   </Text>
                   <Text style={styles.modalDescription}>{selectedGig.description}</Text>
                   <Text style={styles.modalSectionTitle}>Requirements</Text>
                   {selectedGig.requirements.map((item) => (
                     <Text key={item} style={styles.requirementText}>
-                      - {item}
+                      • {item}
                     </Text>
                   ))}
-                  <Text style={styles.modalSectionTitle}>Request message</Text>
+                  <Text style={styles.modalSectionTitle}>Request note</Text>
                   <TextInput
                     value={requestMessageDraft}
                     onChangeText={setRequestMessageDraft}
-                    placeholder="Explain why you fit this gig and ask anything important."
+                    placeholder="Share fit, availability, and questions for the poster"
                     placeholderTextColor={colors.muted}
                     multiline
                     textAlignVertical="top"
@@ -967,11 +1290,17 @@ export default function App() {
                   />
                   <View style={styles.modalFooter}>
                     <View>
-                      <Text style={styles.modalFooterTitle}>Poster</Text>
+                      <View style={styles.modalFooterTitleRow}>
+                        <IconGlyph name="business-outline" size={14} color={colors.textMuted} />
+                        <Text style={styles.modalFooterTitle}>Poster</Text>
+                      </View>
                       <Text style={styles.modalFooterText}>{selectedGig.postedBy}</Text>
                     </View>
                     <Pressable style={styles.primaryButton} onPress={handleSendRequest}>
-                      <Text style={styles.primaryButtonText}>Send Request</Text>
+                      <View style={styles.buttonContent}>
+                        <IconGlyph name="paper-plane-outline" size={17} color={colors.textOnAccent} />
+                        <Text style={styles.primaryButtonText}>Send Request</Text>
+                      </View>
                     </Pressable>
                   </View>
                 </>
@@ -992,6 +1321,7 @@ const styles = StyleSheet.create({
   },
   appShell: {
     flex: 1,
+    backgroundColor: colors.background,
   },
   topBar: {
     position: 'absolute',
@@ -999,8 +1329,8 @@ const styles = StyleSheet.create({
     left: spacing.lg,
     right: spacing.lg,
     zIndex: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: radii.lg,
+    backgroundColor: 'rgba(11, 17, 24, 0.96)',
+    borderRadius: radii.xl,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     flexDirection: 'row',
@@ -1008,63 +1338,228 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
+    ...shadow.card,
+  },
+  topBarBrand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginRight: spacing.md,
+  },
+  brandMarkSmall: {
+    width: 32,
+    height: 32,
+    borderRadius: radii.lg,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandMarkSmallText: {
+    color: colors.textOnAccent,
+    fontFamily: fonts.display,
+    fontWeight: '900',
+  },
+  topBarBrandText: {
+    color: colors.textPrimary,
+    fontFamily: fonts.display,
+    fontWeight: '900',
+    fontSize: 15,
+  },
+  topBarIdentity: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flex: 1,
+    minWidth: 0,
+  },
+  userAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.pill,
+    backgroundColor: colors.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.accent,
+  },
+  userAvatarText: {
+    color: colors.accentSoftText,
+    fontFamily: fonts.display,
+    fontWeight: '800',
   },
   topBarName: {
     color: colors.textPrimary,
     fontSize: 16,
+    fontFamily: fonts.display,
     fontWeight: '800',
   },
   topBarRole: {
-    color: colors.textMuted,
+    color: colors.textSecondary,
     fontSize: 12,
+    fontFamily: fonts.body,
     textTransform: 'capitalize',
     marginTop: 2,
   },
   topBarLogout: {
-    backgroundColor: colors.cardStrong,
+    backgroundColor: colors.surfaceElevated,
     borderRadius: radii.pill,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
   },
   topBarLogoutText: {
-    color: '#FFFFFF',
+    color: colors.textPrimary,
+    fontFamily: fonts.display,
     fontWeight: '700',
   },
   scrollContent: {
     padding: spacing.lg,
-    paddingTop: 48,
+    paddingTop: spacing.lg,
     paddingBottom: spacing.xxxl,
     gap: spacing.lg,
+    width: '78%',
+    maxWidth: 1120,
+    alignSelf: 'center',
   },
   appScrollContent: {
     padding: spacing.lg,
     paddingTop: 92,
     paddingBottom: spacing.xxxl,
     gap: spacing.lg,
+    width: '78%',
+    maxWidth: 980,
+    alignSelf: 'center',
+  },
+  marketHero: {
+    backgroundColor: colors.cardStrong,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xl,
+    gap: spacing.xl,
+    ...shadow.card,
+  },
+  loginNav: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.md,
+    flexWrap: 'wrap',
   },
   loginHero: {
-    gap: spacing.sm,
+    gap: spacing.md,
+    flex: 1.1,
+  },
+  heroGrid: {
+    flexDirection: 'column',
+    gap: spacing.xl,
+    alignItems: 'stretch',
+  },
+  heroGridWide: {
+    flexDirection: 'row',
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  brandMark: {
+    width: 44,
+    height: 44,
+    borderRadius: radii.lg,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandMarkText: {
+    color: colors.textOnAccent,
+    fontFamily: fonts.display,
+    fontSize: 17,
+    fontWeight: '900',
   },
   loginEyebrow: {
     color: colors.accent,
     fontSize: 13,
+    fontFamily: fonts.display,
     fontWeight: '800',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
+  navBadge: {
+    backgroundColor: colors.accentSoft,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  navBadgeText: {
+    color: colors.accentSoftText,
+    fontFamily: fonts.display,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  heroKicker: {
+    color: colors.accentSoftText,
+    fontFamily: fonts.display,
+    fontSize: 13,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  brandSubline: {
+    color: colors.textMuted,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    marginTop: 2,
+  },
   loginTitle: {
     color: colors.textPrimary,
-    fontSize: 32,
-    fontWeight: '800',
-    lineHeight: 40,
+    fontFamily: fonts.display,
+    fontSize: 44,
+    fontWeight: '900',
+    lineHeight: 52,
+    maxWidth: 620,
+  },
+  loginTitleCompact: {
+    fontSize: 34,
+    lineHeight: 42,
   },
   loginSubtitle: {
     color: colors.textSecondary,
+    fontFamily: fonts.body,
     fontSize: 16,
     lineHeight: 24,
+    maxWidth: 680,
+  },
+  trustRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  trustPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.backgroundTint,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  trustText: {
+    color: colors.textSecondary,
+    fontFamily: fonts.display,
+    fontSize: 12,
+    fontWeight: '800',
   },
   loginCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: radii.xl,
     padding: spacing.lg,
     gap: spacing.md,
@@ -1072,26 +1567,76 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadow.card,
   },
+  loginCardWide: {
+    flex: 1,
+    minWidth: 340,
+  },
   roleRow: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     gap: spacing.sm,
+  },
+  roleRowWide: {
+    flexDirection: 'row',
   },
   roleChip: {
     flex: 1,
     backgroundColor: colors.backgroundTint,
-    borderRadius: radii.pill,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
+    borderRadius: radii.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    alignItems: 'flex-start',
+    borderWidth: 1,
+    borderColor: colors.border,
+    minHeight: 88,
   },
   roleChipActive: {
-    backgroundColor: colors.cardStrong,
+    backgroundColor: colors.accentSoft,
+    borderColor: colors.accent,
+  },
+  roleIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  roleIconBubble: {
+    width: 28,
+    height: 28,
+    borderRadius: radii.pill,
+    backgroundColor: colors.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  roleIconBubbleActive: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  roleChipLabel: {
+    color: colors.textMuted,
+    fontFamily: fonts.display,
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
   },
   roleChipText: {
-    color: colors.textSecondary,
-    fontWeight: '700',
+    color: colors.textPrimary,
+    fontFamily: fonts.display,
+    fontSize: 15,
+    fontWeight: '900',
+    marginTop: spacing.xs,
   },
   roleChipTextActive: {
-    color: '#FFFFFF',
+    color: colors.accentSoftText,
+  },
+  roleChipNote: {
+    color: colors.textMuted,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    marginTop: 4,
+  },
+  roleChipNoteActive: {
+    color: colors.textSecondary,
   },
   cleanInput: {
     backgroundColor: colors.backgroundTint,
@@ -1099,9 +1644,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     color: colors.textPrimary,
+    fontFamily: fonts.body,
     fontSize: 15,
     borderWidth: 1,
     borderColor: colors.border,
+    minHeight: 48,
   },
   miniGrid: {
     flexDirection: 'row',
@@ -1109,48 +1656,121 @@ const styles = StyleSheet.create({
   },
   miniCard: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: radii.lg,
     padding: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
+    minHeight: 96,
+    justifyContent: 'center',
+    ...shadow.card,
+  },
+  statIconBubble: {
+    width: 34,
+    height: 34,
+    borderRadius: radii.pill,
+    backgroundColor: colors.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.sm,
   },
   miniCardValue: {
     color: colors.textPrimary,
     fontSize: 24,
+    fontFamily: fonts.display,
     fontWeight: '800',
   },
   miniCardLabel: {
     color: colors.textMuted,
+    fontFamily: fonts.body,
     marginTop: spacing.xs,
   },
   formCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: radii.xl,
     padding: spacing.lg,
-    gap: spacing.sm,
+    gap: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
     ...shadow.card,
   },
-  surfaceCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: radii.xl,
-    padding: spacing.lg,
+  loginCardTitle: {
+    color: colors.textPrimary,
+    fontFamily: fonts.display,
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  loginCardText: {
+    color: colors.textMuted,
+    fontFamily: fonts.body,
+    lineHeight: 20,
+  },
+  categoryShowcase: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.sm,
+  },
+  categoryShowcaseItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  categoryShowcaseText: {
+    color: colors.textSecondary,
+    fontFamily: fonts.display,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  surfaceCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.xl,
+    padding: spacing.lg,
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadow.card,
   },
   sectionStack: {
     gap: spacing.md,
   },
   sectionTitle: {
     color: colors.textPrimary,
-    fontSize: 24,
+    fontFamily: fonts.display,
+    fontSize: 20,
+    fontWeight: '900',
+    lineHeight: 26,
+  },
+  sectionEyebrow: {
+    color: colors.accent,
+    fontFamily: fonts.display,
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  panelHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+  },
+  panelAction: {
+    color: colors.textMuted,
+    fontFamily: fonts.display,
+    fontSize: 12,
     fontWeight: '800',
+    marginTop: 4,
   },
   sectionText: {
     color: colors.textSecondary,
+    fontFamily: fonts.body,
     fontSize: 15,
     lineHeight: 22,
   },
@@ -1158,64 +1778,98 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
   demoUserName: {
     color: colors.textPrimary,
+    fontFamily: fonts.display,
     fontWeight: '700',
     fontSize: 16,
   },
   demoUserMeta: {
     color: colors.textMuted,
+    fontFamily: fonts.body,
     marginTop: 2,
   },
   demoUserAction: {
     color: colors.accent,
+    fontFamily: fonts.display,
     fontWeight: '800',
   },
   tipRow: {
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
   tipRowTitle: {
     color: colors.textPrimary,
+    fontFamily: fonts.display,
     fontWeight: '800',
   },
   tipRowText: {
     color: colors.textSecondary,
+    fontFamily: fonts.body,
     lineHeight: 20,
     marginTop: spacing.xs,
   },
   headerPanel: {
-    backgroundColor: colors.cardStrong,
+    backgroundColor: colors.cardStrongMuted,
     borderRadius: radii.xl,
-    padding: spacing.lg,
-    gap: spacing.sm,
+    padding: spacing.xl,
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadow.card,
+  },
+  headerTopLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
   },
   headerEyebrow: {
-    color: colors.accentSoftText,
+    color: colors.accent,
     fontSize: 12,
+    fontFamily: fonts.display,
     fontWeight: '800',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
-  headerTitle: {
-    color: '#FFFFFF',
-    fontSize: 30,
+  headerBadge: {
+    backgroundColor: colors.accentSoft,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  headerBadgeText: {
+    color: colors.accentSoftText,
+    fontFamily: fonts.display,
+    fontSize: 12,
     fontWeight: '800',
+  },
+  headerTitle: {
+    color: colors.textPrimary,
+    fontFamily: fonts.display,
+    fontSize: 30,
+    fontWeight: '900',
     lineHeight: 38,
   },
   headerSubtitle: {
     color: colors.textOnStrongMuted,
+    fontFamily: fonts.body,
     fontSize: 15,
     lineHeight: 22,
   },
   tabRow: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.backgroundTint,
     borderRadius: radii.pill,
     padding: 4,
     gap: spacing.xs,
@@ -1227,17 +1881,24 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     paddingVertical: spacing.sm,
     alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: spacing.xs,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   tabButtonActive: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.surfaceElevated,
+    borderColor: colors.borderStrong,
   },
   tabLabel: {
     color: colors.textSecondary,
+    fontFamily: fonts.display,
     fontWeight: '700',
     fontSize: 12,
   },
   tabLabelActive: {
-    color: '#FFFFFF',
+    color: colors.accentHover,
   },
   categoryRow: {
     gap: spacing.sm,
@@ -1250,6 +1911,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundTint,
     borderWidth: 1,
     borderColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  searchPanel: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.xl,
+    padding: spacing.lg,
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadow.card,
   },
   categoryChipActive: {
     backgroundColor: colors.accentSoft,
@@ -1257,18 +1930,59 @@ const styles = StyleSheet.create({
   },
   categoryChipText: {
     color: colors.textSecondary,
+    fontFamily: fonts.display,
     fontWeight: '700',
   },
   categoryChipTextActive: {
-    color: colors.accent,
+    color: colors.accentHover,
   },
   jobCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: radii.xl,
     padding: spacing.lg,
-    gap: spacing.sm,
+    gap: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
+    ...shadow.card,
+  },
+  jobCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  posterMini: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flex: 1,
+  },
+  posterAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.pill,
+    backgroundColor: colors.backgroundTint,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  posterAvatarText: {
+    color: colors.textPrimary,
+    fontFamily: fonts.display,
+    fontWeight: '900',
+  },
+  jobPoster: {
+    color: colors.textPrimary,
+    fontFamily: fonts.display,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  jobTrust: {
+    color: colors.textMuted,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    marginTop: 2,
   },
   jobCardHeader: {
     flexDirection: 'row',
@@ -1278,14 +1992,38 @@ const styles = StyleSheet.create({
   jobCategory: {
     color: colors.accent,
     fontSize: 12,
+    fontFamily: fonts.display,
     fontWeight: '800',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
+  amountBlock: {
+    backgroundColor: colors.backgroundTint,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    alignSelf: 'flex-start',
+    minWidth: 128,
+  },
+  amountLabel: {
+    color: colors.textMuted,
+    fontFamily: fonts.body,
+    fontSize: 11,
+  },
+  amountLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginBottom: 2,
+  },
   jobTitle: {
     color: colors.textPrimary,
-    fontSize: 22,
-    fontWeight: '800',
+    fontFamily: fonts.display,
+    fontSize: 21,
+    fontWeight: '900',
+    lineHeight: 27,
     marginTop: spacing.xs,
   },
   amountPill: {
@@ -1294,82 +2032,150 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#24593C',
   },
   amountPillText: {
     color: colors.success,
+    fontFamily: fonts.display,
     fontWeight: '800',
   },
   jobMeta: {
     color: colors.textMuted,
+    fontFamily: fonts.body,
     fontSize: 13,
   },
   jobDescription: {
-    color: colors.textPrimary,
+    color: colors.textSecondary,
+    fontFamily: fonts.body,
     fontSize: 14,
     lineHeight: 21,
+  },
+  jobMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  jobMetaPill: {
+    backgroundColor: colors.backgroundTint,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  jobMetaPillText: {
+    color: colors.textSecondary,
+    fontFamily: fonts.body,
+    fontSize: 12,
+  },
+  cardFooter: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    paddingTop: spacing.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  cardFooterMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  cardFooterText: {
+    color: colors.textMuted,
+    fontFamily: fonts.body,
+    fontSize: 12,
+  },
+  cardFooterAction: {
+    color: colors.accentHover,
+    fontFamily: fonts.display,
+    fontSize: 13,
+    fontWeight: '900',
   },
   messageLayout: {
     gap: spacing.md,
   },
   messageListCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: radii.xl,
     padding: spacing.lg,
     gap: spacing.sm,
     borderWidth: 1,
     borderColor: colors.border,
+    ...shadow.card,
   },
   messageListItem: {
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
   messageListItemActive: {
-    backgroundColor: colors.backgroundTint,
-    marginHorizontal: -8,
-    paddingHorizontal: 8,
+    backgroundColor: colors.surfaceElevated,
     borderRadius: radii.lg,
+    borderBottomColor: 'transparent',
+  },
+  messageListTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
   messageListTitle: {
     color: colors.textPrimary,
+    fontFamily: fonts.display,
     fontWeight: '800',
   },
   messageListMeta: {
     color: colors.textMuted,
+    fontFamily: fonts.body,
     marginTop: 2,
   },
   chatCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: radii.xl,
     padding: spacing.lg,
     gap: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
+    ...shadow.card,
   },
   chatHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: spacing.md,
     alignItems: 'flex-start',
+    flexWrap: 'wrap',
   },
   chatMeta: {
     color: colors.textMuted,
+    fontFamily: fonts.body,
     marginTop: spacing.xs,
   },
   chatDecisionRow: {
+    flexDirection: 'row',
     gap: spacing.xs,
   },
   chatDecisionText: {
-    color: '#FFFFFF',
+    color: colors.textPrimary,
+    fontFamily: fonts.display,
     fontWeight: '800',
     fontSize: 12,
   },
   rejectPill: {
-    backgroundColor: colors.error,
+    backgroundColor: colors.errorSoft,
     borderRadius: radii.lg,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
     alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.error,
   },
   conversationFeed: {
     gap: spacing.sm,
@@ -1381,54 +2187,62 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   messageBubbleOwn: {
-    backgroundColor: colors.cardStrong,
+    backgroundColor: colors.accent,
     alignSelf: 'flex-end',
   },
   messageBubbleOther: {
-    backgroundColor: colors.backgroundTint,
+    backgroundColor: colors.surfaceElevated,
     alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   messageSender: {
     color: colors.textMuted,
     fontSize: 12,
+    fontFamily: fonts.display,
     fontWeight: '700',
   },
   messageSenderOwn: {
-    color: '#D2E0F3',
+    color: colors.textOnAccent,
   },
   messageText: {
-    color: colors.textPrimary,
+    color: colors.textSecondary,
+    fontFamily: fonts.body,
     lineHeight: 20,
   },
   messageTextOwn: {
-    color: '#FFFFFF',
+    color: colors.textOnAccent,
   },
   messageTime: {
     color: colors.textMuted,
     fontSize: 11,
+    fontFamily: fonts.body,
   },
   messageTimeOwn: {
-    color: '#BCD0EA',
+    color: '#0B3F38',
   },
   chatInput: {
     minHeight: 84,
   },
   emptyChatCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: radii.xl,
     padding: spacing.xl,
     alignItems: 'center',
     gap: spacing.sm,
     borderWidth: 1,
     borderColor: colors.border,
+    ...shadow.card,
   },
   emptyChatTitle: {
     color: colors.textPrimary,
+    fontFamily: fonts.display,
     fontWeight: '800',
     fontSize: 20,
   },
   emptyChatText: {
     color: colors.textSecondary,
+    fontFamily: fonts.body,
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -1449,9 +2263,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 48,
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
   },
   primaryButtonText: {
-    color: '#FFFFFF',
+    color: colors.textOnAccent,
+    fontFamily: fonts.display,
     fontWeight: '800',
     fontSize: 15,
   },
@@ -1461,13 +2283,19 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.error,
   },
   acceptButton: {
-    backgroundColor: colors.success,
+    backgroundColor: colors.successSoft,
     borderRadius: radii.lg,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
     alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.success,
   },
   accountCard: {
     backgroundColor: colors.backgroundTint,
@@ -1479,6 +2307,7 @@ const styles = StyleSheet.create({
   },
   accountLine: {
     color: colors.textPrimary,
+    fontFamily: fonts.body,
     fontWeight: '600',
   },
   activityRow: {
@@ -1495,26 +2324,86 @@ const styles = StyleSheet.create({
   },
   activityTitle: {
     color: colors.textPrimary,
+    fontFamily: fonts.display,
     fontWeight: '800',
     fontSize: 16,
   },
+  managementCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.backgroundTint,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+  },
+  managementSide: {
+    alignItems: 'flex-end',
+    gap: spacing.xs,
+  },
+  managementAmount: {
+    color: colors.textPrimary,
+    fontFamily: fonts.display,
+    fontSize: 15,
+    fontWeight: '900',
+  },
   activityMeta: {
     color: colors.textMuted,
+    fontFamily: fonts.body,
     marginTop: 2,
   },
   statusBadge: {
-    backgroundColor: colors.accentSoft,
     borderRadius: radii.pill,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
+    borderWidth: 1,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   statusBadgeText: {
-    color: colors.accent,
+    fontFamily: fonts.display,
     fontWeight: '800',
-    fontSize: 12,
+    fontSize: 11,
+  },
+  statusBadgeOpen: {
+    backgroundColor: colors.successSoft,
+    borderColor: colors.success,
+  },
+  statusBadgeAccepted: {
+    backgroundColor: colors.successSoft,
+    borderColor: colors.success,
+  },
+  statusBadgeRejected: {
+    backgroundColor: colors.errorSoft,
+    borderColor: colors.error,
+  },
+  statusBadgeAssigned: {
+    backgroundColor: colors.blueSoft,
+    borderColor: colors.blueText,
+  },
+  statusBadgePending: {
+    backgroundColor: colors.badgeSoft,
+    borderColor: colors.badge,
+  },
+  statusBadgeTextPositive: {
+    color: colors.success,
+  },
+  statusBadgeTextRejected: {
+    color: colors.error,
+  },
+  statusBadgeTextAssigned: {
+    color: colors.blueText,
+  },
+  statusBadgeTextPending: {
+    color: colors.badgeText,
   },
   requestGigTitle: {
     color: colors.textPrimary,
+    fontFamily: fonts.display,
     fontSize: 18,
     fontWeight: '800',
   },
@@ -1523,27 +2412,34 @@ const styles = StyleSheet.create({
     left: spacing.lg,
     right: spacing.lg,
     bottom: spacing.lg,
-    backgroundColor: colors.cardStrong,
+    backgroundColor: colors.surfaceElevated,
     borderRadius: radii.lg,
     padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.accentSoft,
+    ...shadow.card,
   },
   toastText: {
-    color: '#FFFFFF',
+    color: colors.textPrimary,
     textAlign: 'center',
+    fontFamily: fonts.display,
     fontWeight: '700',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(10, 16, 24, 0.34)',
+    backgroundColor: 'rgba(1, 5, 12, 0.78)',
     justifyContent: 'flex-end',
   },
   modalCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderTopLeftRadius: radii.xl,
     borderTopRightRadius: radii.xl,
     padding: spacing.lg,
     gap: spacing.sm,
     minHeight: '62%',
+    maxHeight: '90%',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1552,31 +2448,42 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     color: colors.textPrimary,
+    fontFamily: fonts.display,
     fontSize: 24,
     fontWeight: '800',
     marginTop: spacing.xs,
   },
   closeText: {
     color: colors.accent,
+    fontFamily: fonts.display,
     fontWeight: '800',
+  },
+  closeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
   modalMeta: {
     color: colors.textMuted,
+    fontFamily: fonts.body,
     fontSize: 14,
   },
   modalDescription: {
-    color: colors.textPrimary,
+    color: colors.textSecondary,
+    fontFamily: fonts.body,
     fontSize: 15,
     lineHeight: 22,
   },
   modalSectionTitle: {
     color: colors.textPrimary,
+    fontFamily: fonts.display,
     fontSize: 16,
     fontWeight: '800',
     marginTop: spacing.sm,
   },
   requirementText: {
     color: colors.textSecondary,
+    fontFamily: fonts.body,
     lineHeight: 20,
   },
   modalFooter: {
@@ -1588,11 +2495,18 @@ const styles = StyleSheet.create({
   },
   modalFooterTitle: {
     color: colors.textMuted,
+    fontFamily: fonts.display,
     fontSize: 12,
     textTransform: 'uppercase',
   },
+  modalFooterTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
   modalFooterText: {
     color: colors.textPrimary,
+    fontFamily: fonts.display,
     fontWeight: '800',
     marginTop: spacing.xs,
   },

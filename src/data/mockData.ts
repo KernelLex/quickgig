@@ -59,30 +59,30 @@ export const postableCategories: Array<Exclude<GigCategory, 'All'>> = [
 export const demoUsers: DemoUser[] = [
   {
     id: 'user-worker-1',
-    name: 'Riya Worker',
+    name: 'Riya Mehta',
     username: 'riya.worker',
     password: 'QuickGig123',
     role: 'worker',
-    headline: 'Short gigs that fit your week',
-    subline: 'Browse quick work, chat with posters, and confirm the job before heading out.',
+    headline: 'Find reliable short-term work from local teams',
+    subline: 'Curated briefs, clear pay, and one request thread for every opportunity.',
   },
   {
     id: 'user-worker-2',
-    name: 'Karan S.',
+    name: 'Karan Shah',
     username: 'karan.worker',
     password: 'QuickGig456',
     role: 'worker',
-    headline: 'Fast local work without long commitments',
-    subline: 'Apply to short gigs, message the poster, and track every request in one inbox.',
+    headline: 'Pick up local gigs without long commitments',
+    subline: 'Compare payout, distance, and timing before sending a request.',
   },
   {
     id: 'user-worker-3',
-    name: 'Maya D.',
+    name: 'Maya Desai',
     username: 'maya.worker',
     password: 'QuickGig789',
     role: 'worker',
-    headline: 'Flexible work that starts quickly',
-    subline: 'Stay active with mini jobs that match your area and schedule.',
+    headline: 'Flexible assignments that start quickly',
+    subline: 'Keep every application, poster message, and update in one place.',
   },
   {
     id: 'user-poster-1',
@@ -90,38 +90,38 @@ export const demoUsers: DemoUser[] = [
     username: 'aarav.poster',
     password: 'PosterPass123',
     role: 'poster',
-    headline: 'Hire reliable help for 2 to 3 day jobs',
-    subline: 'Post gigs, review applicants, and message them before you assign the work.',
+    headline: 'Hire dependable short-term help in minutes',
+    subline: 'Publish a brief, shortlist applicants, and confirm fit before assigning work.',
   },
   {
     id: 'user-admin-1',
-    name: 'Quick Gig Admin',
+    name: 'QuickGig Ops',
     username: 'admin.quickgig',
     password: 'AdminPass123',
     role: 'admin',
-    headline: 'Keep the marketplace organized and trustworthy',
-    subline: 'Watch users, gigs, and request activity from one clean control panel.',
+    headline: 'Monitor marketplace quality and activity',
+    subline: 'Track users, live briefs, request volume, and fulfillment status.',
   },
 ];
 
 export const quickStats = [
-  { label: 'Open gigs', value: '120+' },
-  { label: 'Average pay', value: 'Rs 1.8k' },
-  { label: 'Reply time', value: '< 6 hrs' },
+  { label: 'Active briefs', value: '120+' },
+  { label: 'Average payout', value: 'Rs 1.8k' },
+  { label: 'Median reply', value: '< 6 hrs' },
 ];
 
 export const featuredTips = [
   {
-    title: 'Simple login',
-    description: 'Each role uses a direct username and password flow without extra clutter.',
+    title: 'Verified local briefs',
+    description: 'Every listing shows payout, duration, poster, and applicant interest up front.',
   },
   {
-    title: 'Request chat',
-    description: 'Workers and posters can communicate inside each request before accepting the job.',
+    title: 'Built-in request threads',
+    description: 'Shortlists and questions stay attached to the exact gig they belong to.',
   },
   {
-    title: 'Cleaner layout',
-    description: 'The interface now uses calmer spacing, more focused cards, and clearer visual hierarchy.',
+    title: 'Clean marketplace operations',
+    description: 'Posters and admins can review status without digging through disconnected screens.',
   },
 ];
 
@@ -209,7 +209,7 @@ export const initialRequests: ApplicationRequest[] = [
     id: 'req-1',
     gigId: 'gig-3',
     gigTitle: 'Apartment Move Packing Assist',
-    workerName: 'Riya Worker',
+    workerName: 'Riya Mehta',
     workerNote:
       'Hi, I have helped two families with packing and shifting. I am free for the full 2 days and can start tomorrow morning.',
     status: 'Pending',
@@ -217,7 +217,7 @@ export const initialRequests: ApplicationRequest[] = [
       {
         id: 'msg-1',
         senderRole: 'worker',
-        senderName: 'Riya Worker',
+        senderName: 'Riya Mehta',
         text: 'Hi, I have helped two families with packing and shifting. I am free for the full 2 days and can start tomorrow morning.',
         timestamp: 'Today, 9:15 AM',
       },
@@ -227,7 +227,7 @@ export const initialRequests: ApplicationRequest[] = [
     id: 'req-2',
     gigId: 'gig-3',
     gigTitle: 'Apartment Move Packing Assist',
-    workerName: 'Karan S.',
+    workerName: 'Karan Shah',
     workerNote:
       'I can bring extra packing tape and labels. Let me know if fragile kitchen items need separate handling.',
     status: 'Pending',
@@ -235,7 +235,7 @@ export const initialRequests: ApplicationRequest[] = [
       {
         id: 'msg-2',
         senderRole: 'worker',
-        senderName: 'Karan S.',
+        senderName: 'Karan Shah',
         text: 'I can bring extra packing tape and labels. Let me know if fragile kitchen items need separate handling.',
         timestamp: 'Today, 8:40 AM',
       },
@@ -252,7 +252,7 @@ export const initialRequests: ApplicationRequest[] = [
     id: 'req-3',
     gigId: 'gig-1',
     gigTitle: 'Market Delivery Runner',
-    workerName: 'Maya D.',
+    workerName: 'Maya Desai',
     workerNote:
       'I know the area well and already do local courier runs. I can handle evening deliveries for both days.',
     status: 'Accepted',
@@ -260,7 +260,7 @@ export const initialRequests: ApplicationRequest[] = [
       {
         id: 'msg-4',
         senderRole: 'worker',
-        senderName: 'Maya D.',
+        senderName: 'Maya Desai',
         text: 'I know the area well and already do local courier runs. I can handle evening deliveries for both days.',
         timestamp: 'Yesterday, 6:10 PM',
       },
