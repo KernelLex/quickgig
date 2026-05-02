@@ -66,8 +66,8 @@ export const appUsers: SeedAccount[] = [
     username: 'riya.worker',
     password: 'QuickGig123',
     role: 'worker',
-    headline: 'Find reliable short-term work from local teams',
-    subline: 'Curated briefs, clear pay, and one request thread for every opportunity.',
+    headline: 'Worker workspace',
+    subline: 'Review available briefs, save good matches, and manage every request thread.',
   },
   {
     id: 'user-worker-2',
@@ -75,7 +75,7 @@ export const appUsers: SeedAccount[] = [
     username: 'karan.worker',
     password: 'QuickGig456',
     role: 'worker',
-    headline: 'Pick up local gigs without long commitments',
+    headline: 'Worker workspace',
     subline: 'Compare payout, distance, and timing before sending a request.',
   },
   {
@@ -84,7 +84,7 @@ export const appUsers: SeedAccount[] = [
     username: 'maya.worker',
     password: 'QuickGig789',
     role: 'worker',
-    headline: 'Flexible assignments that start quickly',
+    headline: 'Worker workspace',
     subline: 'Keep every application, poster message, and update in one place.',
   },
   {
@@ -93,8 +93,8 @@ export const appUsers: SeedAccount[] = [
     username: 'aarav.poster',
     password: 'PosterPass123',
     role: 'poster',
-    headline: 'Hire dependable short-term help in minutes',
-    subline: 'Publish a brief, shortlist applicants, and confirm fit before assigning work.',
+    headline: 'Hiring workspace',
+    subline: 'Publish briefs, review applicants, and keep hiring decisions organized.',
   },
   {
     id: 'user-admin-1',
@@ -102,29 +102,8 @@ export const appUsers: SeedAccount[] = [
     username: 'admin.quickgig',
     password: 'AdminPass123',
     role: 'admin',
-    headline: 'Monitor marketplace quality and activity',
-    subline: 'Track users, live briefs, request volume, and fulfillment status.',
-  },
-];
-
-export const quickStats = [
-  { label: 'Active briefs', value: '120+' },
-  { label: 'Average payout', value: 'Rs 1.8k' },
-  { label: 'Median reply', value: '< 6 hrs' },
-];
-
-export const featuredTips = [
-  {
-    title: 'Verified local briefs',
-    description: 'Every listing shows payout, duration, poster, and applicant interest up front.',
-  },
-  {
-    title: 'Built-in request threads',
-    description: 'Shortlists and questions stay attached to the exact gig they belong to.',
-  },
-  {
-    title: 'Clean marketplace operations',
-    description: 'Posters and admins can review status without digging through disconnected screens.',
+    headline: 'Operations console',
+    subline: 'Review marketplace quality, request consistency, and fulfillment status.',
   },
 ];
 

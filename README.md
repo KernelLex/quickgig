@@ -16,7 +16,7 @@ QuickGig is an Expo and React Native marketplace for trusted short-term local wo
 
 ## Seed Accounts
 
-Use the saved profiles on the sign-in screen, or enter the seed credentials directly:
+Choose a workspace on the sign-in screen, then enter the matching seed credentials:
 
 | Role | Username | Password |
 | --- | --- | --- |

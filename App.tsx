@@ -18,11 +18,9 @@ import {
 import {
   appUsers,
   categories,
-  featuredTips,
   initialGigs,
   initialRequests,
   postableCategories,
-  quickStats,
   type ApplicationRequest,
   type AppUser,
   type Gig,
@@ -45,6 +43,7 @@ import {
 import { colors, fonts, radii, shadow, spacing } from './src/theme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
+type LoginStep = 'role' | 'credentials';
 type WorkerTab = 'discover' | 'saved' | 'requests' | 'account';
 type PosterTab = 'overview' | 'post' | 'requests' | 'account';
 type AdminTab = 'overview' | 'gigs' | 'requests' | 'account';
@@ -73,30 +72,24 @@ const roleOptions: Array<{
   {
     key: 'worker',
     label: 'Worker',
-    title: 'Find work',
-    note: 'Browse paid local briefs',
+    title: 'Work marketplace',
+    note: 'Find paid local assignments',
     icon: 'search-outline',
   },
   {
     key: 'poster',
     label: 'Poster',
-    title: 'Hire talent',
-    note: 'Post and shortlist fast',
+    title: 'Hiring workspace',
+    note: 'Publish briefs and manage applicants',
     icon: 'briefcase-outline',
   },
   {
     key: 'admin',
     label: 'Admin',
-    title: 'Operate',
-    note: 'Monitor marketplace health',
+    title: 'Operations console',
+    note: 'Review marketplace quality',
     icon: 'shield-checkmark-outline',
   },
-];
-
-const trustSignals: Array<{ label: string; icon: IconName }> = [
-  { label: 'Clear payouts', icon: 'card-outline' },
-  { label: 'Request threads', icon: 'chatbubbles-outline' },
-  { label: 'Local verification', icon: 'checkmark-circle-outline' },
 ];
 
 const categoryIcons: Record<GigCategory, IconName> = {
@@ -107,8 +100,6 @@ const categoryIcons: Record<GigCategory, IconName> = {
   'Home Help': 'home-outline',
   Promo: 'megaphone-outline',
 };
-
-const quickStatIcons: IconName[] = ['briefcase-outline', 'wallet-outline', 'time-outline'];
 
 const formatPay = (pay: number) => `Rs ${pay.toLocaleString('en-IN')}`;
 
@@ -127,6 +118,7 @@ export default function App() {
   const isWideLayout = width >= 900;
   const compactContentWidth = { width: Math.max(width - spacing.lg * 2, 0) };
   const [authUser, setAuthUser] = useState<AppUser | null>(null);
+  const [loginStep, setLoginStep] = useState<LoginStep>('role');
   const [selectedRole, setSelectedRole] = useState<UserRole>('worker');
   const [workerTab, setWorkerTab] = useState<WorkerTab>('discover');
   const [posterTab, setPosterTab] = useState<PosterTab>('overview');
@@ -185,11 +177,6 @@ export default function App() {
     });
   }, [gigs, search, selectedCategory]);
 
-  const roleAccounts = useMemo(
-    () => appUsers.filter((user) => user.role === selectedRole),
-    [selectedRole],
-  );
-
   const savedGigs = useMemo(
     () => gigs.filter((gig) => savedGigIds.includes(gig.id)),
     [gigs, savedGigIds],
@@ -228,10 +215,10 @@ export default function App() {
     [activeRequestId, activeRequests],
   );
 
+  const selectedRoleOption = roleOptions.find((role) => role.key === selectedRole) ?? roleOptions[0];
+
   const adminStats = useMemo(
     () => ({
-      totalUsers: appUsers.length,
-      liveGigs: gigs.filter((gig) => gig.status !== 'Assigned').length,
       pendingRequests: requests.filter((request) => request.status === 'Pending').length,
       assignedGigs: gigs.filter((gig) => gig.status === 'Assigned').length,
     }),
@@ -266,6 +253,7 @@ export default function App() {
     setLoginForm(initialLoginForm);
     setSelectedGig(null);
     setActiveRequestId(null);
+    setLoginStep('role');
     setRequestMessageDraft('');
     setSavedGigIds([]);
     setSearch('');
@@ -290,6 +278,7 @@ export default function App() {
     setRequestMessageDraft('');
     setChatDrafts({});
     setSavedGigIds([]);
+    setLoginStep('role');
     setMessage('Logged out successfully.');
   };
 
@@ -488,8 +477,8 @@ export default function App() {
       </View>
     ) : null;
 
-  const renderRolePicker = () => (
-    <View style={[styles.roleRow, isWideLayout && styles.roleRowWide]}>
+  const renderWorkspaceChoices = () => (
+    <View style={styles.workspaceChoiceList}>
       {roleOptions.map((item) => {
         const active = selectedRole === item.key;
 
@@ -498,22 +487,30 @@ export default function App() {
             key={item.key}
             onPress={() => {
               setSelectedRole(item.key);
+              setLoginStep('credentials');
               setMessage('');
             }}
-            style={[styles.roleChip, active && styles.roleChipActive]}
+            style={[styles.workspaceChoice, active && styles.workspaceChoiceActive]}
           >
-            <View style={styles.roleIconRow}>
-              <View style={[styles.roleIconBubble, active && styles.roleIconBubbleActive]}>
-                <IconGlyph
-                  name={item.icon}
-                  size={17}
-                  color={active ? colors.textOnAccent : colors.accentHover}
-                />
-              </View>
-              <Text style={[styles.roleChipLabel, active && styles.roleChipTextActive]}>{item.label}</Text>
+            <View style={[styles.workspaceChoiceIcon, active && styles.workspaceChoiceIconActive]}>
+              <IconGlyph
+                name={item.icon}
+                size={18}
+                color={active ? colors.textOnAccent : colors.accentHover}
+              />
             </View>
-            <Text style={[styles.roleChipText, active && styles.roleChipTextActive]}>{item.title}</Text>
-            <Text style={[styles.roleChipNote, active && styles.roleChipNoteActive]}>{item.note}</Text>
+            <View style={styles.activityContent}>
+              <Text style={[styles.workspaceChoiceLabel, active && styles.workspaceChoiceLabelActive]}>
+                {item.label}
+              </Text>
+              <Text style={styles.workspaceChoiceTitle}>{item.title}</Text>
+              <Text style={styles.workspaceChoiceText}>{item.note}</Text>
+            </View>
+            <IconGlyph
+              name="arrow-forward-outline"
+              size={18}
+              color={active ? colors.accentHover : colors.textMuted}
+            />
           </Pressable>
         );
       })}
@@ -523,129 +520,123 @@ export default function App() {
   const renderLogin = () => (
     <ScrollView
       contentContainerStyle={[
-        styles.scrollContent,
-        !isWideLayout && compactContentWidth,
-        isWideLayout && styles.scrollContentWide,
+        styles.authScrollContent,
+        !isWideLayout && styles.authScrollContentCompact,
+        isWideLayout && styles.authScrollContentWide,
       ]}
       showsVerticalScrollIndicator={false}
     >
-      <View style={[styles.marketHero, !isWideLayout && styles.marketHeroCompact]}>
-        <View style={[styles.loginNav, !isWideLayout && styles.loginNavCompact]}>
+      <View style={[styles.authShell, isWideLayout && styles.authShellWide]}>
+        <View style={[styles.authBrandPanel, isWideLayout && styles.authBrandPanelWide]}>
           <View style={styles.brandRow}>
             <View style={styles.brandMark}>
               <IconGlyph name="flash-outline" size={22} color={colors.textOnAccent} />
             </View>
             <View>
               <Text style={styles.loginEyebrow}>QuickGig</Text>
-              <Text style={styles.brandSubline}>Local work marketplace</Text>
-            </View>
-          </View>
-          <View style={styles.navBadge}>
-            <IconGlyph name="location-outline" size={13} color={colors.accentSoftText} />
-            <Text style={styles.navBadgeText}>Bengaluru beta</Text>
-          </View>
-        </View>
-
-        <View style={[styles.heroGrid, isWideLayout && styles.heroGridWide]}>
-          <View style={[styles.loginHero, !isWideLayout && styles.loginHeroCompact]}>
-            <Text style={styles.heroKicker}>Short-term jobs. Real conversations. Fast hiring.</Text>
-            <Text style={[styles.loginTitle, !isWideLayout && styles.loginTitleCompact]}>
-              The marketplace for trusted local gigs.
-            </Text>
-            <Text style={styles.loginSubtitle}>
-              Find paid assignments, post work briefs, and manage requests from one polished workspace.
-            </Text>
-            <View style={styles.trustRow}>
-              {trustSignals.map((signal) => (
-                <View key={signal.label} style={styles.trustPill}>
-                  <IconGlyph name={signal.icon} size={15} color={colors.accentHover} />
-                  <Text style={styles.trustText}>{signal.label}</Text>
-                </View>
-              ))}
+              <Text style={styles.brandSubline}>Trusted local work</Text>
             </View>
           </View>
 
-          <View style={[styles.loginCard, isWideLayout && styles.loginCardWide, !isWideLayout && styles.loginCardCompact]}>
-            <Text style={styles.loginCardTitle}>Access workspace</Text>
-            <Text style={styles.loginCardText}>{roleOptions.find((role) => role.key === selectedRole)?.note}</Text>
-            {renderRolePicker()}
-            <TextInput
-              value={loginForm.username}
-              onChangeText={(value) => setLoginForm((current) => ({ ...current, username: value }))}
-              placeholder="Username"
-              placeholderTextColor={colors.muted}
-              autoCapitalize="none"
-              style={styles.cleanInput}
-            />
-            <TextInput
-              value={loginForm.password}
-              onChangeText={(value) => setLoginForm((current) => ({ ...current, password: value }))}
-              placeholder="Password"
-              placeholderTextColor={colors.muted}
-              secureTextEntry
-              style={styles.cleanInput}
-            />
-            <Pressable style={styles.primaryButton} onPress={handleLogin}>
-              <View style={styles.buttonContent}>
-                <Text style={styles.primaryButtonText}>Sign in</Text>
-                <IconGlyph name="arrow-forward-outline" size={17} color={colors.textOnAccent} />
+          <View style={styles.authCopyBlock}>
+            <Text style={[styles.authTitle, !isWideLayout && styles.authTitleCompact]}>
+              Sign in to manage local work.
+            </Text>
+            <Text style={styles.authSubtitle}>
+              Discover briefs, manage applicants, and keep every request conversation in one focused workspace.
+            </Text>
+          </View>
+
+          <View style={styles.authProcessList}>
+            <View style={styles.authProcessRow}>
+              <View style={styles.authProcessIcon}>
+                <IconGlyph name="grid-outline" size={15} color={colors.accentHover} />
               </View>
-            </Pressable>
+              <View style={styles.activityContent}>
+                <Text style={styles.authProcessTitle}>Choose workspace</Text>
+                <Text style={styles.authProcessText}>Open the worker, hiring, or operations surface built for your role.</Text>
+              </View>
+            </View>
+            <View style={styles.authProcessRow}>
+              <View style={styles.authProcessIcon}>
+                <IconGlyph name="lock-closed-outline" size={15} color={colors.accentHover} />
+              </View>
+              <View style={styles.activityContent}>
+                <Text style={styles.authProcessTitle}>Verify access</Text>
+                <Text style={styles.authProcessText}>Continue with your assigned QuickGig credentials.</Text>
+              </View>
+            </View>
+            <View style={styles.authProcessRow}>
+              <View style={styles.authProcessIcon}>
+                <IconGlyph name="chatbubble-ellipses-outline" size={15} color={colors.accentHover} />
+              </View>
+              <View style={styles.activityContent}>
+                <Text style={styles.authProcessTitle}>Start working</Text>
+                <Text style={styles.authProcessText}>Requests, decisions, and conversations stay connected end to end.</Text>
+              </View>
+            </View>
           </View>
         </View>
 
-        <View style={styles.categoryShowcase}>
-          {postableCategories.map((category) => (
-            <View key={category} style={styles.categoryShowcaseItem}>
-              <IconGlyph name={categoryIcons[category]} size={15} color={colors.textSecondary} />
-              <Text style={styles.categoryShowcaseText}>{category}</Text>
-            </View>
-          ))}
+        <View style={[styles.authFlowPanel, isWideLayout && styles.authFlowPanelWide]}>
+          {loginStep === 'role' ? (
+            <>
+              {renderPanelHeader('Access', 'Choose your workspace')}
+              {renderWorkspaceChoices()}
+            </>
+          ) : (
+            <>
+              <Pressable
+                style={styles.backStepButton}
+                onPress={() => {
+                  setLoginStep('role');
+                  setMessage('');
+                }}
+              >
+                <IconGlyph name="arrow-back-outline" size={16} color={colors.accentHover} />
+                <Text style={styles.backStepText}>Change workspace</Text>
+              </Pressable>
+
+              <View style={styles.selectedWorkspaceCard}>
+                <View style={styles.selectedWorkspaceIcon}>
+                  <IconGlyph name={selectedRoleOption.icon} size={18} color={colors.textOnAccent} />
+                </View>
+                <View style={styles.activityContent}>
+                  <Text style={styles.workspaceChoiceLabel}>{selectedRoleOption.label}</Text>
+                  <Text style={styles.workspaceChoiceTitle}>{selectedRoleOption.title}</Text>
+                  <Text style={styles.workspaceChoiceText}>{selectedRoleOption.note}</Text>
+                </View>
+              </View>
+
+              <TextInput
+                value={loginForm.username}
+                onChangeText={(value) => setLoginForm((current) => ({ ...current, username: value }))}
+                placeholder="Username"
+                placeholderTextColor={colors.muted}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="next"
+                style={styles.cleanInput}
+              />
+              <TextInput
+                value={loginForm.password}
+                onChangeText={(value) => setLoginForm((current) => ({ ...current, password: value }))}
+                placeholder="Password"
+                placeholderTextColor={colors.muted}
+                secureTextEntry
+                returnKeyType="done"
+                onSubmitEditing={handleLogin}
+                style={styles.cleanInput}
+              />
+              <Pressable style={styles.primaryButton} onPress={handleLogin}>
+                <View style={styles.buttonContent}>
+                  <IconGlyph name="log-in-outline" size={17} color={colors.textOnAccent} />
+                  <Text style={styles.primaryButtonText}>Sign in</Text>
+                </View>
+              </Pressable>
+            </>
+          )}
         </View>
-      </View>
-
-      <View style={styles.miniGrid}>
-        {quickStats.map((item, index) => (
-          <View key={item.label} style={styles.miniCard}>
-            <View style={styles.statIconBubble}>
-              <IconGlyph name={quickStatIcons[index]} size={18} color={colors.accentHover} />
-            </View>
-            <Text style={styles.miniCardValue}>{item.value}</Text>
-            <Text style={styles.miniCardLabel}>{item.label}</Text>
-          </View>
-        ))}
-      </View>
-
-      <View style={styles.formCard}>
-        {renderPanelHeader('Workspaces', 'Continue with a saved profile', `${roleAccounts.length} available`)}
-        {roleAccounts.map((account) => (
-          <Pressable
-            key={account.id}
-            style={styles.workspaceRow}
-            onPress={() => {
-              setLoginForm({ username: account.username, password: account.password });
-              setMessage(`Filled credentials for ${account.name}.`);
-            }}
-          >
-            <View>
-              <Text style={styles.workspaceName}>{account.name}</Text>
-              <Text style={styles.workspaceMeta}>
-                @{account.username} - {account.role}
-              </Text>
-            </View>
-            <Text style={styles.workspaceAction}>Open</Text>
-          </Pressable>
-        ))}
-      </View>
-
-      <View style={styles.formCard}>
-        {renderPanelHeader('Marketplace quality', 'Built for short-term hiring')}
-        {featuredTips.map((tip) => (
-          <View key={tip.title} style={styles.tipRow}>
-            <Text style={styles.tipRowTitle}>{tip.title}</Text>
-            <Text style={styles.tipRowText}>{tip.description}</Text>
-          </View>
-        ))}
       </View>
     </ScrollView>
   );
@@ -1014,14 +1005,7 @@ export default function App() {
     </ScrollView>
   );
 
-  const renderPosterView = () => {
-    const stats = {
-      gigs: posterOwnedGigs.length,
-      open: posterOwnedGigs.filter((gig) => gig.status !== 'Assigned').length,
-      requests: posterRequests.filter((request) => request.status === 'Pending').length,
-    };
-
-    return (
+  const renderPosterView = () => (
       <ScrollView
         contentContainerStyle={[
           styles.appScrollContent,
@@ -1040,29 +1024,6 @@ export default function App() {
           </View>
           <Text style={styles.headerTitle}>{authUser?.headline}</Text>
           <Text style={styles.headerSubtitle}>{authUser?.subline}</Text>
-        </View>
-        <View style={styles.miniGrid}>
-          <View style={styles.miniCard}>
-            <View style={styles.statIconBubble}>
-              <IconGlyph name="briefcase-outline" size={18} color={colors.accentHover} />
-            </View>
-            <Text style={styles.miniCardValue}>{stats.gigs}</Text>
-            <Text style={styles.miniCardLabel}>Your gigs</Text>
-          </View>
-          <View style={styles.miniCard}>
-            <View style={styles.statIconBubble}>
-              <IconGlyph name="radio-button-on-outline" size={18} color={colors.accentHover} />
-            </View>
-            <Text style={styles.miniCardValue}>{stats.open}</Text>
-            <Text style={styles.miniCardLabel}>Open</Text>
-          </View>
-          <View style={styles.miniCard}>
-            <View style={styles.statIconBubble}>
-              <IconGlyph name="people-outline" size={18} color={colors.accentHover} />
-            </View>
-            <Text style={styles.miniCardValue}>{stats.requests}</Text>
-            <Text style={styles.miniCardLabel}>Pending</Text>
-          </View>
         </View>
         {renderPosterTabs()}
 
@@ -1231,8 +1192,7 @@ export default function App() {
 
         {posterTab === 'account' ? renderAccountCard() : null}
       </ScrollView>
-    );
-  };
+  );
 
   const renderAdminView = () => (
     <ScrollView
@@ -1253,29 +1213,6 @@ export default function App() {
         </View>
         <Text style={styles.headerTitle}>{authUser?.headline}</Text>
         <Text style={styles.headerSubtitle}>{authUser?.subline}</Text>
-      </View>
-      <View style={styles.miniGrid}>
-        <View style={styles.miniCard}>
-          <View style={styles.statIconBubble}>
-            <IconGlyph name="people-outline" size={18} color={colors.accentHover} />
-          </View>
-          <Text style={styles.miniCardValue}>{adminStats.totalUsers}</Text>
-          <Text style={styles.miniCardLabel}>Users</Text>
-        </View>
-        <View style={styles.miniCard}>
-          <View style={styles.statIconBubble}>
-            <IconGlyph name="storefront-outline" size={18} color={colors.accentHover} />
-          </View>
-          <Text style={styles.miniCardValue}>{adminStats.liveGigs}</Text>
-          <Text style={styles.miniCardLabel}>Live gigs</Text>
-        </View>
-        <View style={styles.miniCard}>
-          <View style={styles.statIconBubble}>
-            <IconGlyph name="speedometer-outline" size={18} color={colors.accentHover} />
-          </View>
-          <Text style={styles.miniCardValue}>{marketplaceAudit.healthScore}</Text>
-          <Text style={styles.miniCardLabel}>Health score</Text>
-        </View>
       </View>
       {renderAdminTabs()}
 
@@ -1576,18 +1513,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.display,
     fontWeight: '700',
   },
-  scrollContent: {
-    padding: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xxxl,
-    gap: spacing.lg,
-    maxWidth: 1120,
-    alignSelf: 'stretch',
-  },
-  scrollContentWide: {
-    width: '78%',
-    alignSelf: 'center',
-  },
   appScrollContent: {
     padding: spacing.lg,
     paddingTop: 92,
@@ -1600,44 +1525,202 @@ const styles = StyleSheet.create({
     width: '78%',
     alignSelf: 'center',
   },
-  marketHero: {
+  authScrollContent: {
+    width: '100%',
+    padding: spacing.lg,
+    paddingTop: 104,
+    paddingBottom: spacing.xxxl,
+    maxWidth: 1120,
+    alignSelf: 'stretch',
+  },
+  authScrollContentCompact: {
+    paddingTop: spacing.lg,
+  },
+  authScrollContentWide: {
+    width: '78%',
+    alignSelf: 'center',
+  },
+  authShell: {
+    gap: spacing.lg,
+    width: '100%',
+  },
+  authShellWide: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  authBrandPanel: {
     backgroundColor: colors.cardStrong,
     borderRadius: radii.xl,
     borderWidth: 1,
     borderColor: colors.border,
     padding: spacing.xl,
-    gap: spacing.xl,
+    gap: spacing.xxl,
+    minHeight: 520,
+    justifyContent: 'space-between',
     ...shadow.card,
   },
-  marketHeroCompact: {
-    padding: spacing.lg,
+  authBrandPanelWide: {
+    flex: 1.18,
   },
-  loginNav: {
+  authFlowPanel: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xl,
+    gap: spacing.md,
+    minWidth: 0,
+    alignSelf: 'stretch',
+    ...shadow.card,
+  },
+  authFlowPanelWide: {
+    flex: 0.82,
+    minWidth: 340,
+  },
+  authCopyBlock: {
+    gap: spacing.md,
+  },
+  authTitle: {
+    color: colors.textPrimary,
+    fontFamily: fonts.display,
+    fontSize: 44,
+    lineHeight: 52,
+    fontWeight: '900',
+    maxWidth: 620,
+  },
+  authTitleCompact: {
+    fontSize: 32,
+    lineHeight: 39,
+  },
+  authSubtitle: {
+    color: colors.textSecondary,
+    fontFamily: fonts.body,
+    fontSize: 16,
+    lineHeight: 24,
+    maxWidth: 620,
+  },
+  authProcessList: {
+    gap: spacing.sm,
+  },
+  authProcessRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    padding: spacing.md,
+    backgroundColor: colors.backgroundTint,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  authProcessIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accentSoft,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  authProcessTitle: {
+    color: colors.textPrimary,
+    fontFamily: fonts.display,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  authProcessText: {
+    color: colors.textMuted,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 3,
+  },
+  workspaceChoiceList: {
+    gap: spacing.sm,
+  },
+  workspaceChoice: {
+    flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    flexWrap: 'wrap',
+    backgroundColor: colors.backgroundTint,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    minHeight: 92,
   },
-  loginNavCompact: {
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    justifyContent: 'flex-start',
+  workspaceChoiceActive: {
+    backgroundColor: colors.accentSoft,
+    borderColor: colors.accent,
   },
-  loginHero: {
-    gap: spacing.md,
-    flex: 1.1,
+  workspaceChoiceIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: radii.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  loginHeroCompact: {
-    alignSelf: 'stretch',
+  workspaceChoiceIconActive: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
-  heroGrid: {
-    flexDirection: 'column',
-    gap: spacing.xl,
-    alignItems: 'stretch',
+  workspaceChoiceLabel: {
+    color: colors.textMuted,
+    fontFamily: fonts.display,
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
   },
-  heroGridWide: {
+  workspaceChoiceLabelActive: {
+    color: colors.accentSoftText,
+  },
+  workspaceChoiceTitle: {
+    color: colors.textPrimary,
+    fontFamily: fonts.display,
+    fontSize: 16,
+    fontWeight: '900',
+    marginTop: 3,
+  },
+  workspaceChoiceText: {
+    color: colors.textMuted,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 3,
+  },
+  backStepButton: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.xs,
+  },
+  backStepText: {
+    color: colors.accentHover,
+    fontFamily: fonts.display,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  selectedWorkspaceCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.backgroundTint,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    padding: spacing.md,
+  },
+  selectedWorkspaceIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: radii.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accent,
   },
   brandRow: {
     flexDirection: 'row',
@@ -1660,161 +1743,11 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
-  navBadge: {
-    backgroundColor: colors.accentSoft,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  navBadgeText: {
-    color: colors.accentSoftText,
-    fontFamily: fonts.display,
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  heroKicker: {
-    color: colors.accentSoftText,
-    fontFamily: fonts.display,
-    fontSize: 13,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-  },
   brandSubline: {
     color: colors.textMuted,
     fontFamily: fonts.body,
     fontSize: 13,
     marginTop: 2,
-  },
-  loginTitle: {
-    color: colors.textPrimary,
-    fontFamily: fonts.display,
-    fontSize: 44,
-    fontWeight: '900',
-    lineHeight: 52,
-    maxWidth: 620,
-  },
-  loginTitleCompact: {
-    fontSize: 32,
-    lineHeight: 39,
-    maxWidth: '100%',
-  },
-  loginSubtitle: {
-    color: colors.textSecondary,
-    fontFamily: fonts.body,
-    fontSize: 16,
-    lineHeight: 24,
-    maxWidth: 680,
-  },
-  trustRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-  },
-  trustPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    backgroundColor: colors.backgroundTint,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  trustText: {
-    color: colors.textSecondary,
-    fontFamily: fonts.display,
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  loginCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.xl,
-    padding: spacing.lg,
-    gap: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadow.card,
-  },
-  loginCardWide: {
-    flex: 1,
-    minWidth: 340,
-  },
-  loginCardCompact: {
-    alignSelf: 'stretch',
-  },
-  roleRow: {
-    flexDirection: 'column',
-    gap: spacing.sm,
-  },
-  roleRowWide: {
-    flexDirection: 'row',
-  },
-  roleChip: {
-    flex: 1,
-    backgroundColor: colors.backgroundTint,
-    borderRadius: radii.lg,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    alignItems: 'flex-start',
-    borderWidth: 1,
-    borderColor: colors.border,
-    minHeight: 88,
-  },
-  roleChipActive: {
-    backgroundColor: colors.accentSoft,
-    borderColor: colors.accent,
-  },
-  roleIconRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  roleIconBubble: {
-    width: 28,
-    height: 28,
-    borderRadius: radii.pill,
-    backgroundColor: colors.accentSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  roleIconBubbleActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  roleChipLabel: {
-    color: colors.textMuted,
-    fontFamily: fonts.display,
-    fontSize: 11,
-    fontWeight: '900',
-    textTransform: 'uppercase',
-  },
-  roleChipText: {
-    color: colors.textPrimary,
-    fontFamily: fonts.display,
-    fontSize: 15,
-    fontWeight: '900',
-    marginTop: spacing.xs,
-  },
-  roleChipTextActive: {
-    color: colors.accentSoftText,
-  },
-  roleChipNote: {
-    color: colors.textMuted,
-    fontFamily: fonts.body,
-    fontSize: 12,
-    marginTop: 4,
-  },
-  roleChipNoteActive: {
-    color: colors.textSecondary,
   },
   cleanInput: {
     backgroundColor: colors.backgroundTint,
@@ -1828,43 +1761,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     minHeight: 48,
   },
-  miniGrid: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  miniCard: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    minHeight: 96,
-    justifyContent: 'center',
-    ...shadow.card,
-  },
-  statIconBubble: {
-    width: 34,
-    height: 34,
-    borderRadius: radii.pill,
-    backgroundColor: colors.accentSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: spacing.sm,
-  },
-  miniCardValue: {
-    color: colors.textPrimary,
-    fontSize: 24,
-    fontFamily: fonts.display,
-    fontWeight: '800',
-  },
-  miniCardLabel: {
-    color: colors.textMuted,
-    fontFamily: fonts.body,
-    marginTop: spacing.xs,
-  },
   formCard: {
     backgroundColor: colors.surface,
     borderRadius: radii.xl,
@@ -1873,39 +1769,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     ...shadow.card,
-  },
-  loginCardTitle: {
-    color: colors.textPrimary,
-    fontFamily: fonts.display,
-    fontSize: 22,
-    fontWeight: '900',
-  },
-  loginCardText: {
-    color: colors.textMuted,
-    fontFamily: fonts.body,
-    lineHeight: 20,
-  },
-  categoryShowcase: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  categoryShowcaseItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    backgroundColor: colors.surfaceElevated,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  categoryShowcaseText: {
-    color: colors.textSecondary,
-    fontFamily: fonts.display,
-    fontSize: 12,
-    fontWeight: '800',
   },
   surfaceCard: {
     backgroundColor: colors.surface,
@@ -2021,46 +1884,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '900',
     textTransform: 'uppercase',
-  },
-  workspaceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  workspaceName: {
-    color: colors.textPrimary,
-    fontFamily: fonts.display,
-    fontWeight: '700',
-    fontSize: 16,
-  },
-  workspaceMeta: {
-    color: colors.textMuted,
-    fontFamily: fonts.body,
-    marginTop: 2,
-  },
-  workspaceAction: {
-    color: colors.accent,
-    fontFamily: fonts.display,
-    fontWeight: '800',
-  },
-  tipRow: {
-    paddingVertical: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  tipRowTitle: {
-    color: colors.textPrimary,
-    fontFamily: fonts.display,
-    fontWeight: '800',
-  },
-  tipRowText: {
-    color: colors.textSecondary,
-    fontFamily: fonts.body,
-    lineHeight: 20,
-    marginTop: spacing.xs,
   },
   headerPanel: {
     backgroundColor: colors.cardStrongMuted,
