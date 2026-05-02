@@ -16,15 +16,15 @@ import {
 } from 'react-native';
 
 import {
+  appUsers,
   categories,
-  demoUsers,
   featuredTips,
   initialGigs,
   initialRequests,
   postableCategories,
   quickStats,
   type ApplicationRequest,
-  type DemoUser,
+  type AppUser,
   type Gig,
   type GigCategory,
   type UserRole,
@@ -32,7 +32,7 @@ import {
 import { colors, fonts, radii, shadow, spacing } from './src/theme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
-type WorkerTab = 'discover' | 'requests' | 'account';
+type WorkerTab = 'discover' | 'saved' | 'requests' | 'account';
 type PosterTab = 'overview' | 'post' | 'requests' | 'account';
 type AdminTab = 'overview' | 'gigs' | 'requests' | 'account';
 
@@ -99,6 +99,9 @@ const quickStatIcons: IconName[] = ['briefcase-outline', 'wallet-outline', 'time
 
 const formatPay = (pay: number) => `Rs ${pay.toLocaleString('en-IN')}`;
 
+const getGigMatchScore = (gig: Gig) =>
+  Math.min(98, Math.round(gig.rating * 15 + Math.min(gig.applicants, 18) + (gig.status === 'Open' ? 8 : 3)));
+
 const IconGlyph = ({
   name,
   size = 18,
@@ -112,7 +115,8 @@ const IconGlyph = ({
 export default function App() {
   const { width } = useWindowDimensions();
   const isWideLayout = width >= 900;
-  const [authUser, setAuthUser] = useState<DemoUser | null>(null);
+  const compactContentWidth = { width: Math.max(width - spacing.lg * 2, 0) };
+  const [authUser, setAuthUser] = useState<AppUser | null>(null);
   const [selectedRole, setSelectedRole] = useState<UserRole>('worker');
   const [workerTab, setWorkerTab] = useState<WorkerTab>('discover');
   const [posterTab, setPosterTab] = useState<PosterTab>('overview');
@@ -127,6 +131,7 @@ export default function App() {
   const [loginForm, setLoginForm] = useState(initialLoginForm);
   const [requestMessageDraft, setRequestMessageDraft] = useState('');
   const [chatDrafts, setChatDrafts] = useState<Record<string, string>>({});
+  const [savedGigIds, setSavedGigIds] = useState<string[]>([]);
   const [message, setMessage] = useState('');
 
   useEffect(() => {
@@ -171,8 +176,13 @@ export default function App() {
   }, [gigs, search, selectedCategory]);
 
   const roleAccounts = useMemo(
-    () => demoUsers.filter((user) => user.role === selectedRole),
+    () => appUsers.filter((user) => user.role === selectedRole),
     [selectedRole],
+  );
+
+  const savedGigs = useMemo(
+    () => gigs.filter((gig) => savedGigIds.includes(gig.id)),
+    [gigs, savedGigIds],
   );
 
   const posterOwnedGigs = useMemo(() => {
@@ -196,6 +206,11 @@ export default function App() {
     return requests.filter((request) => request.workerName === authUser.name);
   }, [authUser, requests]);
 
+  const requestedGigIds = useMemo(
+    () => new Set(workerRequests.map((request) => request.gigId)),
+    [workerRequests],
+  );
+
   const activeRequests = authUser?.role === 'worker' ? workerRequests : posterRequests;
 
   const activeRequest = useMemo(
@@ -205,12 +220,25 @@ export default function App() {
 
   const adminStats = useMemo(
     () => ({
-      totalUsers: demoUsers.length,
+      totalUsers: appUsers.length,
       liveGigs: gigs.filter((gig) => gig.status !== 'Assigned').length,
       pendingRequests: requests.filter((request) => request.status === 'Pending').length,
     }),
     [gigs, requests],
   );
+
+  const gigReadinessItems = useMemo(
+    () => [
+      { label: 'Clear title', complete: Boolean(gigForm.title.trim()) },
+      { label: 'Exact location', complete: Boolean(gigForm.location.trim()) },
+      { label: 'Payout added', complete: Number(gigForm.pay.replace(/,/g, '')) > 0 },
+      { label: 'Timing set', complete: Boolean(gigForm.duration.trim()) },
+      { label: 'Detailed scope', complete: gigForm.description.trim().length >= 40 },
+    ],
+    [gigForm],
+  );
+  const gigReadinessCount = gigReadinessItems.filter((item) => item.complete).length;
+  const gigReadinessPercent = Math.round((gigReadinessCount / gigReadinessItems.length) * 100);
 
   const handleLogin = () => {
     const username = loginForm.username.trim().toLowerCase();
@@ -221,7 +249,7 @@ export default function App() {
       return;
     }
 
-    const user = demoUsers.find(
+    const user = appUsers.find(
       (account) =>
         account.role === selectedRole &&
         account.username.toLowerCase() === username &&
@@ -238,6 +266,7 @@ export default function App() {
     setSelectedGig(null);
     setActiveRequestId(null);
     setRequestMessageDraft('');
+    setSavedGigIds([]);
     setSearch('');
     setSelectedCategory('All');
     setMessage(`Welcome back, ${user.name}.`);
@@ -259,7 +288,14 @@ export default function App() {
     setActiveRequestId(null);
     setRequestMessageDraft('');
     setChatDrafts({});
+    setSavedGigIds([]);
     setMessage('Logged out successfully.');
+  };
+
+  const toggleSavedGig = (gigId: string) => {
+    setSavedGigIds((current) =>
+      current.includes(gigId) ? current.filter((savedGigId) => savedGigId !== gigId) : [gigId, ...current],
+    );
   };
 
   const handleCreateGig = () => {
@@ -271,13 +307,14 @@ export default function App() {
       !gigForm.title.trim() ||
       !gigForm.location.trim() ||
       !gigForm.pay.trim() ||
+      !gigForm.duration.trim() ||
       !gigForm.description.trim()
     ) {
-      setMessage('Fill in the title, location, pay, and description before posting.');
+      setMessage('Fill in the title, location, pay, duration, and description before posting.');
       return;
     }
 
-    const pay = Number(gigForm.pay);
+    const pay = Number(gigForm.pay.replace(/,/g, ''));
 
     if (Number.isNaN(pay) || pay <= 0) {
       setMessage('Enter a valid rupee amount for the payout.');
@@ -311,6 +348,25 @@ export default function App() {
 
   const handleSendRequest = () => {
     if (!selectedGig || !authUser) {
+      return;
+    }
+
+    const existingRequest = requests.find(
+      (request) => request.gigId === selectedGig.id && request.workerName === authUser.name,
+    );
+
+    if (existingRequest) {
+      setSelectedGig(null);
+      setRequestMessageDraft('');
+      setActiveRequestId(existingRequest.id);
+      setWorkerTab('requests');
+      setMessage('You already have a request thread for this brief.');
+      return;
+    }
+
+    if (selectedGig.status === 'Assigned') {
+      setSelectedGig(null);
+      setMessage('This brief has already been assigned.');
       return;
     }
 
@@ -391,31 +447,64 @@ export default function App() {
       return;
     }
 
-    setRequests((current) =>
-      current.map((request) =>
-        request.id === requestId
-          ? {
-              ...request,
-              status: decision,
-              conversation: [
-                ...request.conversation,
-                {
-                  id: `msg-${Date.now()}-decision`,
-                  senderRole: 'poster',
-                  senderName: authUser.name,
-                  text:
-                    decision === 'Accepted'
-                      ? 'You have been accepted for this gig. Please check the schedule and be ready to start.'
-                      : 'Thank you for applying. We are moving ahead with another worker for this task.',
-                  timestamp: 'Just now',
-                },
-              ],
-            }
-          : request,
-      ),
-    );
-
     const targetRequest = requests.find((request) => request.id === requestId);
+
+    if (!targetRequest) {
+      setMessage('Request not found.');
+      return;
+    }
+
+    if (targetRequest.status !== 'Pending') {
+      setMessage(`This request is already ${targetRequest.status.toLowerCase()}.`);
+      return;
+    }
+
+    setRequests((current) =>
+      current.map((request) => {
+        if (request.id === requestId) {
+          return {
+            ...request,
+            status: decision,
+            conversation: [
+              ...request.conversation,
+              {
+                id: `msg-${Date.now()}-${request.id}-decision`,
+                senderRole: 'poster',
+                senderName: authUser.name,
+                text:
+                  decision === 'Accepted'
+                    ? 'You have been accepted for this gig. Please check the schedule and be ready to start.'
+                    : 'Thank you for applying. We are moving ahead with another worker for this task.',
+                timestamp: 'Just now',
+              },
+            ],
+          };
+        }
+
+        if (
+          decision === 'Accepted' &&
+          request.gigId === targetRequest.gigId &&
+          request.status === 'Pending'
+        ) {
+          return {
+            ...request,
+            status: 'Rejected',
+            conversation: [
+              ...request.conversation,
+              {
+                id: `msg-${Date.now()}-${request.id}-auto-close`,
+                senderRole: 'poster',
+                senderName: authUser.name,
+                text: 'This brief has now been assigned. Thanks for applying and staying available.',
+                timestamp: 'Just now',
+              },
+            ],
+          };
+        }
+
+        return request;
+      }),
+    );
 
     if (targetRequest && decision === 'Accepted') {
       setGigs((current) =>
@@ -425,9 +514,10 @@ export default function App() {
       );
     }
 
+    setActiveRequestId(requestId);
     setMessage(
       decision === 'Accepted'
-        ? 'Worker accepted and notified in the chat.'
+        ? 'Worker accepted. Other pending requests for this brief were closed.'
         : 'Worker rejected and informed in the chat.',
     );
   };
@@ -546,9 +636,16 @@ export default function App() {
   );
 
   const renderLogin = () => (
-    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-      <View style={styles.marketHero}>
-        <View style={styles.loginNav}>
+    <ScrollView
+      contentContainerStyle={[
+        styles.scrollContent,
+        !isWideLayout && compactContentWidth,
+        isWideLayout && styles.scrollContentWide,
+      ]}
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={[styles.marketHero, !isWideLayout && styles.marketHeroCompact]}>
+        <View style={[styles.loginNav, !isWideLayout && styles.loginNavCompact]}>
           <View style={styles.brandRow}>
             <View style={styles.brandMark}>
               <IconGlyph name="flash-outline" size={22} color={colors.textOnAccent} />
@@ -565,7 +662,7 @@ export default function App() {
         </View>
 
         <View style={[styles.heroGrid, isWideLayout && styles.heroGridWide]}>
-          <View style={styles.loginHero}>
+          <View style={[styles.loginHero, !isWideLayout && styles.loginHeroCompact]}>
             <Text style={styles.heroKicker}>Short-term jobs. Real conversations. Fast hiring.</Text>
             <Text style={[styles.loginTitle, !isWideLayout && styles.loginTitleCompact]}>
               The marketplace for trusted local gigs.
@@ -583,7 +680,7 @@ export default function App() {
             </View>
           </View>
 
-          <View style={[styles.loginCard, isWideLayout && styles.loginCardWide]}>
+          <View style={[styles.loginCard, isWideLayout && styles.loginCardWide, !isWideLayout && styles.loginCardCompact]}>
             <Text style={styles.loginCardTitle}>Access workspace</Text>
             <Text style={styles.loginCardText}>{roleOptions.find((role) => role.key === selectedRole)?.note}</Text>
             {renderRolePicker()}
@@ -639,19 +736,19 @@ export default function App() {
         {roleAccounts.map((account) => (
           <Pressable
             key={account.id}
-            style={styles.demoUserRow}
+            style={styles.workspaceRow}
             onPress={() => {
               setLoginForm({ username: account.username, password: account.password });
               setMessage(`Filled credentials for ${account.name}.`);
             }}
           >
             <View>
-              <Text style={styles.demoUserName}>{account.name}</Text>
-              <Text style={styles.demoUserMeta}>
-                @{account.username} • {account.role}
+              <Text style={styles.workspaceName}>{account.name}</Text>
+              <Text style={styles.workspaceMeta}>
+                @{account.username} - {account.role}
               </Text>
             </View>
-            <Text style={styles.demoUserAction}>Open</Text>
+            <Text style={styles.workspaceAction}>Open</Text>
           </Pressable>
         ))}
       </View>
@@ -672,6 +769,7 @@ export default function App() {
     <View style={styles.tabRow}>
       {[
         { key: 'discover', label: 'Discover', icon: 'compass-outline' as IconName },
+        { key: 'saved', label: 'Saved', icon: 'bookmark-outline' as IconName },
         { key: 'requests', label: 'Messages', icon: 'chatbubble-ellipses-outline' as IconName },
         { key: 'account', label: 'Account', icon: 'person-circle-outline' as IconName },
       ].map((tab) => {
@@ -763,7 +861,7 @@ export default function App() {
           </Text>
         </View>
         {renderStatusBadge(request.status)}
-        {canModerate ? (
+        {canModerate && request.status === 'Pending' ? (
           <View style={styles.chatDecisionRow}>
             <Pressable style={styles.acceptButton} onPress={() => handleRequestDecision(request.id, 'Accepted')}>
               <IconGlyph name="checkmark-outline" size={14} color={colors.textPrimary} />
@@ -812,8 +910,101 @@ export default function App() {
     </View>
   );
 
+  const renderGigCard = (gig: Gig) => {
+    const saved = savedGigIds.includes(gig.id);
+    const requested = requestedGigIds.has(gig.id);
+    const matchScore = getGigMatchScore(gig);
+
+    return (
+      <View key={gig.id} style={[styles.jobCard, requested && styles.jobCardHighlighted]}>
+        <View style={styles.jobCardTop}>
+          <View style={styles.posterMini}>
+            <View style={styles.posterAvatar}>
+              <IconGlyph name="business-outline" size={18} color={colors.textPrimary} />
+            </View>
+            <View style={styles.activityContent}>
+              <Text style={styles.jobPoster}>{gig.postedBy}</Text>
+              <Text style={styles.jobTrust}>Rated {gig.rating.toFixed(1)} by local workers</Text>
+            </View>
+          </View>
+          <View style={styles.cardActionRow}>
+            <View style={styles.scorePill}>
+              <IconGlyph name="sparkles-outline" size={13} color={colors.accentHover} />
+              <Text style={styles.scorePillText}>{matchScore}% fit</Text>
+            </View>
+            <Pressable
+              accessibilityLabel={saved ? 'Remove saved brief' : 'Save brief'}
+              onPress={() => toggleSavedGig(gig.id)}
+              style={[styles.saveButton, saved && styles.saveButtonActive]}
+            >
+              <IconGlyph
+                name={saved ? 'bookmark' : 'bookmark-outline'}
+                size={17}
+                color={saved ? colors.textOnAccent : colors.accentHover}
+              />
+            </Pressable>
+            {renderStatusBadge(gig.status)}
+          </View>
+        </View>
+        <View style={styles.jobCardHeader}>
+          <View style={styles.activityContent}>
+            <Text style={styles.jobCategory}>{gig.category}</Text>
+            <Text style={styles.jobTitle}>{gig.title}</Text>
+            <Text style={styles.jobDescription} numberOfLines={2}>
+              {gig.description}
+            </Text>
+          </View>
+          <View style={styles.amountBlock}>
+            <View style={styles.amountLabelRow}>
+              <IconGlyph name="cash-outline" size={13} color={colors.textMuted} />
+              <Text style={styles.amountLabel}>Fixed payout</Text>
+            </View>
+            <Text style={styles.amountPillText}>{formatPay(gig.pay)}</Text>
+          </View>
+        </View>
+        <View style={styles.jobMetaRow}>
+          <View style={styles.jobMetaPill}>
+            <IconGlyph name="location-outline" size={14} color={colors.textMuted} />
+            <Text style={styles.jobMetaPillText}>{gig.location}</Text>
+          </View>
+          <View style={styles.jobMetaPill}>
+            <IconGlyph name="time-outline" size={14} color={colors.textMuted} />
+            <Text style={styles.jobMetaPillText}>{gig.duration}</Text>
+          </View>
+          <View style={styles.jobMetaPill}>
+            <IconGlyph name="people-outline" size={14} color={colors.textMuted} />
+            <Text style={styles.jobMetaPillText}>{gig.applicants} applicants</Text>
+          </View>
+        </View>
+        <View style={styles.cardFooter}>
+          <View style={styles.cardFooterMeta}>
+            <IconGlyph
+              name={requested ? 'checkmark-done-outline' : 'shield-checkmark-outline'}
+              size={15}
+              color={requested ? colors.success : colors.textMuted}
+            />
+            <Text style={styles.cardFooterText}>
+              {requested ? 'Request thread active' : 'Shortlist-ready local brief'}
+            </Text>
+          </View>
+          <Pressable style={styles.cardFooterButton} onPress={() => setSelectedGig(gig)}>
+            <Text style={styles.cardFooterAction}>{requested ? 'Open brief' : 'View brief'}</Text>
+            <IconGlyph name="arrow-forward-outline" size={15} color={colors.accentHover} />
+          </Pressable>
+        </View>
+      </View>
+    );
+  };
+
   const renderWorkerView = () => (
-    <ScrollView contentContainerStyle={styles.appScrollContent} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      contentContainerStyle={[
+        styles.appScrollContent,
+        !isWideLayout && compactContentWidth,
+        isWideLayout && styles.appScrollContentWide,
+      ]}
+      showsVerticalScrollIndicator={false}
+    >
         <View style={styles.headerPanel}>
           <View style={styles.headerTopLine}>
             <Text style={styles.headerEyebrow}>Worker marketplace</Text>
@@ -861,62 +1052,35 @@ export default function App() {
             </ScrollView>
           </View>
 
-          {filteredGigs.map((gig) => (
-            <Pressable key={gig.id} style={styles.jobCard} onPress={() => setSelectedGig(gig)}>
-              <View style={styles.jobCardTop}>
-                <View style={styles.posterMini}>
-                  <View style={styles.posterAvatar}>
-                    <IconGlyph name="business-outline" size={18} color={colors.textPrimary} />
-                  </View>
-                  <View>
-                    <Text style={styles.jobPoster}>{gig.postedBy}</Text>
-                    <Text style={styles.jobTrust}>Rated {gig.rating.toFixed(1)} by local workers</Text>
-                  </View>
-                </View>
-                {renderStatusBadge(gig.status)}
-              </View>
-              <View style={styles.jobCardHeader}>
-                <View style={styles.activityContent}>
-                  <Text style={styles.jobCategory}>{gig.category}</Text>
-                  <Text style={styles.jobTitle}>{gig.title}</Text>
-                  <Text style={styles.jobDescription} numberOfLines={2}>
-                    {gig.description}
-                  </Text>
-                </View>
-                <View style={styles.amountBlock}>
-                  <View style={styles.amountLabelRow}>
-                    <IconGlyph name="cash-outline" size={13} color={colors.textMuted} />
-                    <Text style={styles.amountLabel}>Fixed payout</Text>
-                  </View>
-                  <Text style={styles.amountPillText}>{formatPay(gig.pay)}</Text>
-                </View>
-              </View>
-              <View style={styles.jobMetaRow}>
-                <View style={styles.jobMetaPill}>
-                  <IconGlyph name="location-outline" size={14} color={colors.textMuted} />
-                  <Text style={styles.jobMetaPillText}>{gig.location}</Text>
-                </View>
-                <View style={styles.jobMetaPill}>
-                  <IconGlyph name="time-outline" size={14} color={colors.textMuted} />
-                  <Text style={styles.jobMetaPillText}>{gig.duration}</Text>
-                </View>
-                <View style={styles.jobMetaPill}>
-                  <IconGlyph name="people-outline" size={14} color={colors.textMuted} />
-                  <Text style={styles.jobMetaPillText}>{gig.applicants} applicants</Text>
-                </View>
-              </View>
-              <View style={styles.cardFooter}>
-                <View style={styles.cardFooterMeta}>
-                  <IconGlyph name="shield-checkmark-outline" size={15} color={colors.textMuted} />
-                  <Text style={styles.cardFooterText}>Shortlist-ready local brief</Text>
-                </View>
-                <View style={styles.cardFooterMeta}>
-                  <Text style={styles.cardFooterAction}>View brief</Text>
-                  <IconGlyph name="arrow-forward-outline" size={15} color={colors.accentHover} />
-                </View>
-              </View>
-            </Pressable>
-          ))}
+          {filteredGigs.length > 0 ? (
+            filteredGigs.map(renderGigCard)
+          ) : (
+            <View style={styles.emptyStateCard}>
+              <IconGlyph name="search-outline" size={22} color={colors.textMuted} />
+              <Text style={styles.emptyChatTitle}>No briefs found</Text>
+              <Text style={styles.emptyChatText}>Try a broader search or switch categories.</Text>
+            </View>
+          )}
+        </View>
+      ) : null}
+
+      {workerTab === 'saved' ? (
+        <View style={styles.sectionStack}>
+          <View style={styles.surfaceCard}>
+            {renderPanelHeader('Saved', 'Briefs you are considering', `${savedGigs.length} saved`)}
+            <Text style={styles.sectionText}>
+              Compare payout, timing, and poster quality before sending a request.
+            </Text>
+          </View>
+          {savedGigs.length > 0 ? (
+            savedGigs.map(renderGigCard)
+          ) : (
+            <View style={styles.emptyStateCard}>
+              <IconGlyph name="bookmark-outline" size={22} color={colors.textMuted} />
+              <Text style={styles.emptyChatTitle}>Nothing saved yet</Text>
+              <Text style={styles.emptyChatText}>Saved briefs will appear here for quick comparison.</Text>
+            </View>
+          )}
         </View>
       ) : null}
 
@@ -942,7 +1106,7 @@ export default function App() {
                       />
                       <Text style={styles.messageListTitle}>{request.gigTitle}</Text>
                     </View>
-                    <Text style={styles.messageListMeta}>{request.status} • {request.workerName}</Text>
+                    <Text style={styles.messageListMeta}>{request.status} - {request.workerName}</Text>
                   </Pressable>
                 );
               })}
@@ -973,7 +1137,14 @@ export default function App() {
     };
 
     return (
-      <ScrollView contentContainerStyle={styles.appScrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.appScrollContent,
+          !isWideLayout && compactContentWidth,
+          isWideLayout && styles.appScrollContentWide,
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.headerPanel}>
           <View style={styles.headerTopLine}>
             <Text style={styles.headerEyebrow}>Poster workspace</Text>
@@ -1018,7 +1189,7 @@ export default function App() {
                 <View style={styles.activityContent}>
                   <Text style={styles.activityTitle}>{gig.title}</Text>
                   <Text style={styles.activityMeta}>
-                    {gig.location} • {gig.duration}
+                    {gig.location} - {gig.duration}
                   </Text>
                 </View>
                 <View style={styles.managementSide}>
@@ -1033,6 +1204,37 @@ export default function App() {
         {posterTab === 'post' ? (
           <View style={styles.formCard}>
             {renderPanelHeader('Create', 'Post a new work brief')}
+            <View style={styles.readinessCard}>
+              <View style={styles.readinessTop}>
+                <View>
+                  <Text style={styles.readinessLabel}>Brief readiness</Text>
+                  <Text style={styles.readinessTitle}>{gigReadinessPercent}% complete</Text>
+                </View>
+                <View style={styles.readinessScore}>
+                  <IconGlyph name="checkmark-done-outline" size={15} color={colors.accentHover} />
+                  <Text style={styles.readinessScoreText}>
+                    {gigReadinessCount}/{gigReadinessItems.length}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.progressTrack}>
+                <View style={[styles.progressFill, { width: `${gigReadinessPercent}%` }]} />
+              </View>
+              <View style={styles.readinessList}>
+                {gigReadinessItems.map((item) => (
+                  <View key={item.label} style={[styles.readinessItem, item.complete && styles.readinessItemDone]}>
+                    <IconGlyph
+                      name={item.complete ? 'checkmark-circle-outline' : 'ellipse-outline'}
+                      size={14}
+                      color={item.complete ? colors.success : colors.textMuted}
+                    />
+                    <Text style={[styles.readinessItemText, item.complete && styles.readinessItemTextDone]}>
+                      {item.label}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
             <TextInput
               value={gigForm.title}
               onChangeText={(value) => setGigForm((current) => ({ ...current, title: value }))}
@@ -1124,7 +1326,7 @@ export default function App() {
                       />
                       <Text style={styles.messageListTitle}>{request.workerName}</Text>
                     </View>
-                    <Text style={styles.messageListMeta}>{request.gigTitle} • {request.status}</Text>
+                    <Text style={styles.messageListMeta}>{request.gigTitle} - {request.status}</Text>
                   </Pressable>
                 );
               })}
@@ -1148,7 +1350,14 @@ export default function App() {
   };
 
   const renderAdminView = () => (
-    <ScrollView contentContainerStyle={styles.appScrollContent} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      contentContainerStyle={[
+        styles.appScrollContent,
+        !isWideLayout && compactContentWidth,
+        isWideLayout && styles.appScrollContentWide,
+      ]}
+      showsVerticalScrollIndicator={false}
+    >
       <View style={styles.headerPanel}>
         <View style={styles.headerTopLine}>
           <Text style={styles.headerEyebrow}>Operations</Text>
@@ -1202,7 +1411,7 @@ export default function App() {
               <View style={styles.activityContent}>
                 <Text style={styles.activityTitle}>{gig.title}</Text>
                 <Text style={styles.activityMeta}>
-                  {gig.postedBy} • {gig.location} • {formatPay(gig.pay)}
+                  {gig.postedBy} - {gig.location} - {formatPay(gig.pay)}
                 </Text>
               </View>
               {renderStatusBadge(gig.status)}
@@ -1231,6 +1440,8 @@ export default function App() {
       {adminTab === 'account' ? renderAccountCard() : null}
     </ScrollView>
   );
+
+  const selectedGigAlreadyRequested = selectedGig ? requestedGigIds.has(selectedGig.id) : false;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -1269,25 +1480,37 @@ export default function App() {
                     </Pressable>
                   </View>
                   <Text style={styles.modalMeta}>
-                    {selectedGig.location} • {selectedGig.duration} • {formatPay(selectedGig.pay)}
+                    {selectedGig.location} - {selectedGig.duration} - {formatPay(selectedGig.pay)}
                   </Text>
                   <Text style={styles.modalDescription}>{selectedGig.description}</Text>
                   <Text style={styles.modalSectionTitle}>Requirements</Text>
                   {selectedGig.requirements.map((item) => (
                     <Text key={item} style={styles.requirementText}>
-                      • {item}
+                      - {item}
                     </Text>
                   ))}
-                  <Text style={styles.modalSectionTitle}>Request note</Text>
-                  <TextInput
-                    value={requestMessageDraft}
-                    onChangeText={setRequestMessageDraft}
-                    placeholder="Share fit, availability, and questions for the poster"
-                    placeholderTextColor={colors.muted}
-                    multiline
-                    textAlignVertical="top"
-                    style={[styles.cleanInput, styles.largeInput]}
-                  />
+                  {selectedGigAlreadyRequested ? (
+                    <View style={styles.noticeCard}>
+                      <IconGlyph name="checkmark-done-outline" size={18} color={colors.success} />
+                      <View style={styles.activityContent}>
+                        <Text style={styles.noticeTitle}>Request already active</Text>
+                        <Text style={styles.noticeText}>The existing thread is ready in Messages.</Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <>
+                      <Text style={styles.modalSectionTitle}>Request note</Text>
+                      <TextInput
+                        value={requestMessageDraft}
+                        onChangeText={setRequestMessageDraft}
+                        placeholder="Share fit, availability, and questions for the poster"
+                        placeholderTextColor={colors.muted}
+                        multiline
+                        textAlignVertical="top"
+                        style={[styles.cleanInput, styles.largeInput]}
+                      />
+                    </>
+                  )}
                   <View style={styles.modalFooter}>
                     <View>
                       <View style={styles.modalFooterTitleRow}>
@@ -1298,8 +1521,14 @@ export default function App() {
                     </View>
                     <Pressable style={styles.primaryButton} onPress={handleSendRequest}>
                       <View style={styles.buttonContent}>
-                        <IconGlyph name="paper-plane-outline" size={17} color={colors.textOnAccent} />
-                        <Text style={styles.primaryButtonText}>Send Request</Text>
+                        <IconGlyph
+                          name={selectedGigAlreadyRequested ? 'chatbubble-ellipses-outline' : 'paper-plane-outline'}
+                          size={17}
+                          color={colors.textOnAccent}
+                        />
+                        <Text style={styles.primaryButtonText}>
+                          {selectedGigAlreadyRequested ? 'Open Thread' : 'Send Request'}
+                        </Text>
                       </View>
                     </Pressable>
                   </View>
@@ -1353,11 +1582,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  brandMarkSmallText: {
-    color: colors.textOnAccent,
-    fontFamily: fonts.display,
-    fontWeight: '900',
   },
   topBarBrandText: {
     color: colors.textPrimary,
@@ -1418,8 +1642,11 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
     paddingBottom: spacing.xxxl,
     gap: spacing.lg,
-    width: '78%',
     maxWidth: 1120,
+    alignSelf: 'stretch',
+  },
+  scrollContentWide: {
+    width: '78%',
     alignSelf: 'center',
   },
   appScrollContent: {
@@ -1427,8 +1654,11 @@ const styles = StyleSheet.create({
     paddingTop: 92,
     paddingBottom: spacing.xxxl,
     gap: spacing.lg,
-    width: '78%',
     maxWidth: 980,
+    alignSelf: 'stretch',
+  },
+  appScrollContentWide: {
+    width: '78%',
     alignSelf: 'center',
   },
   marketHero: {
@@ -1440,6 +1670,9 @@ const styles = StyleSheet.create({
     gap: spacing.xl,
     ...shadow.card,
   },
+  marketHeroCompact: {
+    padding: spacing.lg,
+  },
   loginNav: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1447,9 +1680,17 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     flexWrap: 'wrap',
   },
+  loginNavCompact: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
+  },
   loginHero: {
     gap: spacing.md,
     flex: 1.1,
+  },
+  loginHeroCompact: {
+    alignSelf: 'stretch',
   },
   heroGrid: {
     flexDirection: 'column',
@@ -1471,12 +1712,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  brandMarkText: {
-    color: colors.textOnAccent,
-    fontFamily: fonts.display,
-    fontSize: 17,
-    fontWeight: '900',
   },
   loginEyebrow: {
     color: colors.accent,
@@ -1525,8 +1760,9 @@ const styles = StyleSheet.create({
     maxWidth: 620,
   },
   loginTitleCompact: {
-    fontSize: 34,
-    lineHeight: 42,
+    fontSize: 32,
+    lineHeight: 39,
+    maxWidth: '100%',
   },
   loginSubtitle: {
     color: colors.textSecondary,
@@ -1570,6 +1806,9 @@ const styles = StyleSheet.create({
   loginCardWide: {
     flex: 1,
     minWidth: 340,
+  },
+  loginCardCompact: {
+    alignSelf: 'stretch',
   },
   roleRow: {
     flexDirection: 'column',
@@ -1774,7 +2013,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
   },
-  demoUserRow: {
+  workspaceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -1782,18 +2021,18 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  demoUserName: {
+  workspaceName: {
     color: colors.textPrimary,
     fontFamily: fonts.display,
     fontWeight: '700',
     fontSize: 16,
   },
-  demoUserMeta: {
+  workspaceMeta: {
     color: colors.textMuted,
     fontFamily: fonts.body,
     marginTop: 2,
   },
-  demoUserAction: {
+  workspaceAction: {
     color: colors.accent,
     fontFamily: fonts.display,
     fontWeight: '800',
@@ -1945,11 +2184,54 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadow.card,
   },
+  jobCardHighlighted: {
+    borderColor: colors.accent,
+    backgroundColor: colors.cardStrongMuted,
+  },
   jobCardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: spacing.md,
+    flexWrap: 'wrap',
+  },
+  cardActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+  },
+  scorePill: {
+    backgroundColor: colors.accentSoft,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  scorePillText: {
+    color: colors.accentSoftText,
+    fontFamily: fonts.display,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  saveButton: {
+    width: 34,
+    height: 34,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.backgroundTint,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  saveButtonActive: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   posterMini: {
     flexDirection: 'row',
@@ -1966,11 +2248,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: colors.borderStrong,
-  },
-  posterAvatarText: {
-    color: colors.textPrimary,
-    fontFamily: fonts.display,
-    fontWeight: '900',
   },
   jobPoster: {
     color: colors.textPrimary,
@@ -2026,24 +2303,10 @@ const styles = StyleSheet.create({
     lineHeight: 27,
     marginTop: spacing.xs,
   },
-  amountPill: {
-    backgroundColor: colors.successSoft,
-    borderRadius: radii.pill,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    alignSelf: 'flex-start',
-    borderWidth: 1,
-    borderColor: '#24593C',
-  },
   amountPillText: {
     color: colors.success,
     fontFamily: fonts.display,
     fontWeight: '800',
-  },
-  jobMeta: {
-    color: colors.textMuted,
-    fontFamily: fonts.body,
-    fontSize: 13,
   },
   jobDescription: {
     color: colors.textSecondary,
@@ -2085,6 +2348,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
+  },
+  cardFooterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.backgroundTint,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   cardFooterText: {
     color: colors.textMuted,
@@ -2234,6 +2508,16 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadow.card,
   },
+  emptyStateCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.xl,
+    padding: spacing.xl,
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadow.card,
+  },
   emptyChatTitle: {
     color: colors.textPrimary,
     fontFamily: fonts.display,
@@ -2255,6 +2539,90 @@ const styles = StyleSheet.create({
   },
   largeInput: {
     minHeight: 112,
+  },
+  readinessCard: {
+    backgroundColor: colors.backgroundTint,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+  readinessTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  readinessLabel: {
+    color: colors.textMuted,
+    fontFamily: fonts.display,
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  readinessTitle: {
+    color: colors.textPrimary,
+    fontFamily: fonts.display,
+    fontSize: 18,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+  readinessScore: {
+    backgroundColor: colors.accentSoft,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  readinessScoreText: {
+    color: colors.accentSoftText,
+    fontFamily: fonts.display,
+    fontWeight: '900',
+  },
+  progressTrack: {
+    height: 8,
+    backgroundColor: colors.surface,
+    borderRadius: radii.pill,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: colors.accent,
+    borderRadius: radii.pill,
+  },
+  readinessList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  readinessItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  readinessItemDone: {
+    backgroundColor: colors.successSoft,
+    borderColor: colors.success,
+  },
+  readinessItemText: {
+    color: colors.textMuted,
+    fontFamily: fonts.display,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  readinessItemTextDone: {
+    color: colors.textPrimary,
   },
   primaryButton: {
     backgroundColor: colors.accent,
@@ -2309,15 +2677,6 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontFamily: fonts.body,
     fontWeight: '600',
-  },
-  activityRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
   },
   activityContent: {
     flex: 1,
@@ -2485,6 +2844,29 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontFamily: fonts.body,
     lineHeight: 20,
+  },
+  noticeCard: {
+    backgroundColor: colors.successSoft,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.success,
+    padding: spacing.md,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    alignItems: 'flex-start',
+    marginTop: spacing.sm,
+  },
+  noticeTitle: {
+    color: colors.textPrimary,
+    fontFamily: fonts.display,
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  noticeText: {
+    color: colors.textSecondary,
+    fontFamily: fonts.body,
+    lineHeight: 20,
+    marginTop: 2,
   },
   modalFooter: {
     marginTop: 'auto',

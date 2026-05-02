@@ -1,6 +1,6 @@
-# Quick Gig
+# QuickGig
 
-Quick Gig is an Android-ready Expo app for short local jobs that usually last 2 to 3 days. It includes separate worker, poster, and admin flows, simple demo authentication, request-based messaging, and a cleaner mobile UI.
+QuickGig is an Android-ready Expo marketplace for trusted short-term local work. It includes separate worker, poster, and admin workspaces, request-based messaging, saved briefs, applicant decisions, and marketplace-quality checks designed for a production-style mobile experience.
 
 ## Run locally
 
@@ -17,10 +17,12 @@ npm run web
 
 ## What is included
 
-- Simple role-based login for workers, posters, and admins
-- Worker gig discovery flow with search and category filters
+- Role-based login for workers, posters, and admins
+- Worker gig discovery flow with search, category filters, saved briefs, and fit indicators
 - Gig posting flow for posters
+- Brief-readiness checks for stronger listings
 - Request-based chat between workers and posters before accept/reject
+- Duplicate request protection and automatic closure of competing requests after assignment
 - Admin overview for gigs and request activity
 - Android-ready Expo configuration for local builds
 
@@ -28,7 +30,16 @@ npm run web
 
 This project was scaffolded with Expo and verified with:
 
-```bash
+```powershell
 npx tsc --noEmit
-npx expo export --platform android
+$exportDir = Join-Path $env:TEMP "quickgig-export"
+npx expo export --platform android --output-dir $exportDir
+```
+
+For a local Windows test APK:
+
+```powershell
+cd android
+$env:NODE_ENV = "production"
+.\gradlew.bat assembleRelease -PreactNativeArchitectures=arm64-v8a
 ```

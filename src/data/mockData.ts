@@ -3,7 +3,7 @@ export type UserRole = 'worker' | 'poster' | 'admin';
 export type RequestStatus = 'Pending' | 'Accepted' | 'Rejected';
 export type GigStatus = 'Open' | 'Reviewing' | 'Assigned';
 
-export type DemoUser = {
+export type AppUser = {
   id: string;
   name: string;
   username: string;
@@ -56,7 +56,7 @@ export const postableCategories: Array<Exclude<GigCategory, 'All'>> = [
   'Promo',
 ];
 
-export const demoUsers: DemoUser[] = [
+export const appUsers: AppUser[] = [
   {
     id: 'user-worker-1',
     name: 'Riya Mehta',
