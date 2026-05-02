@@ -11,7 +11,7 @@ QuickGig is an Expo and React Native marketplace for trusted short-term local wo
 - Duplicate request protection
 - Applicant accept/reject decisions with automatic closure of competing pending requests
 - Backend-style marketplace rules in `src/backend/marketplace.ts`
-- Admin operational audit for status mismatches, duplicate requests, and assignment issues
+- Admin operational audit and status sync for mismatches, duplicate requests, and assignment issues
 - Android-ready Expo configuration with dark system UI support
 
 ## Seed Accounts

@@ -179,6 +179,47 @@ export const reconcileGigsWithRequests = (gigs: Gig[], requests: ApplicationRequ
     return gig;
   });
 
+export const repairMarketplaceStatuses = ({
+  gigs,
+  requests,
+}: {
+  gigs: Gig[];
+  requests: ApplicationRequest[];
+}): ServiceResult<Gig[]> => {
+  let changedCount = 0;
+
+  const repairedGigs = gigs.map((gig) => {
+    const relatedRequests = requests.filter((request) => request.gigId === gig.id);
+    const nextStatus: Gig['status'] = relatedRequests.some((request) => request.status === 'Accepted')
+      ? 'Assigned'
+      : relatedRequests.some((request) => request.status === 'Pending')
+        ? 'Reviewing'
+        : 'Open';
+    const nextApplicants = Math.max(gig.applicants, relatedRequests.length);
+
+    if (gig.status === nextStatus && gig.applicants === nextApplicants) {
+      return gig;
+    }
+
+    changedCount += 1;
+
+    return {
+      ...gig,
+      applicants: nextApplicants,
+      status: nextStatus,
+    };
+  });
+
+  return {
+    ok: true,
+    data: repairedGigs,
+    message:
+      changedCount === 0
+        ? 'Marketplace statuses are already in sync.'
+        : `Synced ${changedCount} brief ${changedCount === 1 ? 'status' : 'statuses'} with request activity.`,
+  };
+};
+
 export const calculateGigFitScore = (gig: Gig) =>
   Math.min(98, Math.round(gig.rating * 15 + Math.min(gig.applicants, 18) + (gig.status === 'Open' ? 8 : 3)));
 
@@ -467,6 +508,15 @@ export const auditMarketplace = (gigs: Gig[], requests: ApplicationRequest[]): M
         severity: 'Low',
         title: 'Brief could use more detail',
         detail: `${gig.title} has a short scope description.`,
+      });
+    }
+
+    if (gig.applicants < relatedRequests.length) {
+      issues.push({
+        id: `applicant-count-${gig.id}`,
+        severity: 'Medium',
+        title: 'Applicant count is out of sync',
+        detail: `${gig.title} shows fewer applicants than request threads.`,
       });
     }
   });

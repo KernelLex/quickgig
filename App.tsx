@@ -36,6 +36,7 @@ import {
   calculateGigFitScore,
   createGigFromDraft,
   decideRequest,
+  repairMarketplaceStatuses,
   reconcileGigsWithRequests,
   submitRequestForGig,
   type GigDraft,
@@ -161,6 +162,16 @@ export default function App() {
       webDocument.body.style.margin = previousBodyMargin;
     };
   }, []);
+
+  useEffect(() => {
+    if (!message) {
+      return;
+    }
+
+    const timeout = setTimeout(() => setMessage(''), 3200);
+
+    return () => clearTimeout(timeout);
+  }, [message]);
 
   const filteredGigs = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -369,6 +380,7 @@ export default function App() {
 
     setRequests(chatResult.data);
     setChatDrafts((current) => ({ ...current, [requestId]: '' }));
+    setMessage(chatResult.message);
   };
 
   const handleRequestDecision = (requestId: string, decision: 'Accepted' | 'Rejected') => {
@@ -394,6 +406,18 @@ export default function App() {
     setRequests(decisionResult.data.requests);
     setActiveRequestId(requestId);
     setMessage(decisionResult.message);
+  };
+
+  const handleSyncMarketplace = () => {
+    const repairResult = repairMarketplaceStatuses({ gigs, requests });
+
+    if (!repairResult.ok) {
+      setMessage(repairResult.message);
+      return;
+    }
+
+    setGigs(repairResult.data);
+    setMessage(repairResult.message);
   };
 
   const renderStatusBadge = (status: Gig['status'] | ApplicationRequest['status']) => {
@@ -455,23 +479,25 @@ export default function App() {
 
   const renderTopBar = () =>
     authUser ? (
-      <View style={styles.topBar}>
-        <View style={styles.topBarBrand}>
-          <View style={styles.brandMarkSmall}>
+      <View style={[styles.topBar, !isWideLayout && styles.topBarCompact]}>
+        <View style={[styles.topBarBrand, !isWideLayout && styles.topBarBrandCompact]}>
+          <View style={[styles.brandMarkSmall, !isWideLayout && styles.brandMarkSmallCompact]}>
             <IconGlyph name="flash-outline" size={17} color={colors.textOnAccent} />
           </View>
-          <Text style={styles.topBarBrandText}>QuickGig</Text>
+          <Text style={styles.topBarBrandText} numberOfLines={1}>QuickGig</Text>
         </View>
         <View style={styles.topBarIdentity}>
-          <View style={styles.userAvatar}>
+          <View style={[styles.userAvatar, !isWideLayout && styles.userAvatarCompact]}>
             <Text style={styles.userAvatarText}>{authUser.name.slice(0, 1)}</Text>
           </View>
-          <View>
-            <Text style={styles.topBarName}>{authUser.name}</Text>
-            <Text style={styles.topBarRole}>{authUser.role}</Text>
+          <View style={styles.topBarIdentityText}>
+            <Text style={[styles.topBarName, !isWideLayout && styles.topBarNameCompact]} numberOfLines={1}>
+              {authUser.name}
+            </Text>
+            <Text style={styles.topBarRole} numberOfLines={1}>{authUser.role}</Text>
           </View>
         </View>
-        <Pressable style={styles.topBarLogout} onPress={handleLogout}>
+        <Pressable style={[styles.topBarLogout, !isWideLayout && styles.topBarLogoutCompact]} onPress={handleLogout}>
           <Text style={styles.topBarLogoutText}>Logout</Text>
         </Pressable>
       </View>
@@ -642,7 +668,7 @@ export default function App() {
   );
 
   const renderWorkerTabs = () => (
-    <View style={styles.tabRow}>
+    <View style={[styles.tabRow, !isWideLayout && styles.tabRowCompact]}>
       {[
         { key: 'discover', label: 'Discover', icon: 'compass-outline' as IconName },
         { key: 'saved', label: 'Saved', icon: 'bookmark-outline' as IconName },
@@ -654,10 +680,15 @@ export default function App() {
           <Pressable
             key={tab.key}
             onPress={() => setWorkerTab(tab.key as WorkerTab)}
-            style={[styles.tabButton, active && styles.tabButtonActive]}
+            style={[styles.tabButton, !isWideLayout && styles.tabButtonCompact, active && styles.tabButtonActive]}
           >
             <IconGlyph name={tab.icon} size={16} color={active ? colors.accentHover : colors.textMuted} />
-            <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{tab.label}</Text>
+            <Text
+              style={[styles.tabLabel, !isWideLayout && styles.tabLabelCompact, active && styles.tabLabelActive]}
+              numberOfLines={1}
+            >
+              {tab.label}
+            </Text>
           </Pressable>
         );
       })}
@@ -665,7 +696,7 @@ export default function App() {
   );
 
   const renderPosterTabs = () => (
-    <View style={styles.tabRow}>
+    <View style={[styles.tabRow, !isWideLayout && styles.tabRowCompact]}>
       {[
         { key: 'overview', label: 'Overview', icon: 'analytics-outline' as IconName },
         { key: 'post', label: 'Post', icon: 'add-circle-outline' as IconName },
@@ -677,10 +708,15 @@ export default function App() {
           <Pressable
             key={tab.key}
             onPress={() => setPosterTab(tab.key as PosterTab)}
-            style={[styles.tabButton, active && styles.tabButtonActive]}
+            style={[styles.tabButton, !isWideLayout && styles.tabButtonCompact, active && styles.tabButtonActive]}
           >
             <IconGlyph name={tab.icon} size={16} color={active ? colors.accentHover : colors.textMuted} />
-            <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{tab.label}</Text>
+            <Text
+              style={[styles.tabLabel, !isWideLayout && styles.tabLabelCompact, active && styles.tabLabelActive]}
+              numberOfLines={1}
+            >
+              {tab.label}
+            </Text>
           </Pressable>
         );
       })}
@@ -688,7 +724,7 @@ export default function App() {
   );
 
   const renderAdminTabs = () => (
-    <View style={styles.tabRow}>
+    <View style={[styles.tabRow, !isWideLayout && styles.tabRowCompact]}>
       {[
         { key: 'overview', label: 'Overview', icon: 'speedometer-outline' as IconName },
         { key: 'gigs', label: 'Briefs', icon: 'documents-outline' as IconName },
@@ -700,10 +736,15 @@ export default function App() {
           <Pressable
             key={tab.key}
             onPress={() => setAdminTab(tab.key as AdminTab)}
-            style={[styles.tabButton, active && styles.tabButtonActive]}
+            style={[styles.tabButton, !isWideLayout && styles.tabButtonCompact, active && styles.tabButtonActive]}
           >
             <IconGlyph name={tab.icon} size={16} color={active ? colors.accentHover : colors.textMuted} />
-            <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{tab.label}</Text>
+            <Text
+              style={[styles.tabLabel, !isWideLayout && styles.tabLabelCompact, active && styles.tabLabelActive]}
+              numberOfLines={1}
+            >
+              {tab.label}
+            </Text>
           </Pressable>
         );
       })}
@@ -793,17 +834,17 @@ export default function App() {
 
     return (
       <View key={gig.id} style={[styles.jobCard, requested && styles.jobCardHighlighted]}>
-        <View style={styles.jobCardTop}>
-          <View style={styles.posterMini}>
+        <View style={[styles.jobCardTop, !isWideLayout && styles.jobCardTopCompact]}>
+          <View style={[styles.posterMini, !isWideLayout && styles.posterMiniCompact]}>
             <View style={styles.posterAvatar}>
               <IconGlyph name="business-outline" size={18} color={colors.textPrimary} />
             </View>
             <View style={styles.activityContent}>
-              <Text style={styles.jobPoster}>{gig.postedBy}</Text>
-              <Text style={styles.jobTrust}>Rated {gig.rating.toFixed(1)} by local workers</Text>
+              <Text style={styles.jobPoster} numberOfLines={1}>{gig.postedBy}</Text>
+              <Text style={styles.jobTrust} numberOfLines={1}>Rated {gig.rating.toFixed(1)} by local workers</Text>
             </View>
           </View>
-          <View style={styles.cardActionRow}>
+          <View style={[styles.cardActionRow, !isWideLayout && styles.cardActionRowCompact]}>
             <View style={styles.scorePill}>
               <IconGlyph name="sparkles-outline" size={13} color={colors.accentHover} />
               <Text style={styles.scorePillText}>{matchScore}% fit</Text>
@@ -822,7 +863,7 @@ export default function App() {
             {renderStatusBadge(gig.status)}
           </View>
         </View>
-        <View style={styles.jobCardHeader}>
+        <View style={[styles.jobCardHeader, !isWideLayout && styles.jobCardHeaderCompact]}>
           <View style={styles.activityContent}>
             <Text style={styles.jobCategory}>{gig.category}</Text>
             <Text style={styles.jobTitle}>{gig.title}</Text>
@@ -830,7 +871,7 @@ export default function App() {
               {gig.description}
             </Text>
           </View>
-          <View style={styles.amountBlock}>
+          <View style={[styles.amountBlock, !isWideLayout && styles.amountBlockCompact]}>
             <View style={styles.amountLabelRow}>
               <IconGlyph name="cash-outline" size={13} color={colors.textMuted} />
               <Text style={styles.amountLabel}>Fixed payout</Text>
@@ -852,7 +893,7 @@ export default function App() {
             <Text style={styles.jobMetaPillText}>{gig.applicants} applicants</Text>
           </View>
         </View>
-        <View style={styles.cardFooter}>
+        <View style={[styles.cardFooter, !isWideLayout && styles.cardFooterCompact]}>
           <View style={styles.cardFooterMeta}>
             <IconGlyph
               name={requested ? 'checkmark-done-outline' : 'shield-checkmark-outline'}
@@ -1116,7 +1157,7 @@ export default function App() {
               placeholderTextColor={colors.muted}
               style={styles.cleanInput}
             />
-            <View style={styles.inlineInputs}>
+            <View style={[styles.inlineInputs, !isWideLayout && styles.inlineInputsCompact]}>
               <TextInput
                 value={gigForm.pay}
                 onChangeText={(value) => setGigForm((current) => ({ ...current, pay: value }))}
@@ -1222,7 +1263,7 @@ export default function App() {
           <Text style={styles.sectionText}>
             Live supply, request quality, and fulfillment status across the marketplace.
           </Text>
-          <View style={styles.auditGrid}>
+          <View style={[styles.auditGrid, !isWideLayout && styles.auditGridCompact]}>
             <View style={styles.auditScoreCard}>
               <IconGlyph name="shield-checkmark-outline" size={20} color={colors.accentHover} />
               <View>
@@ -1267,6 +1308,14 @@ export default function App() {
               </View>
             ) : null}
           </View>
+          {marketplaceAudit.issues.length > 0 ? (
+            <Pressable style={styles.secondaryActionButton} onPress={handleSyncMarketplace}>
+              <View style={styles.buttonContent}>
+                <IconGlyph name="sync-outline" size={16} color={colors.accentHover} />
+                <Text style={styles.secondaryActionText}>Sync marketplace statuses</Text>
+              </View>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
 
@@ -1445,11 +1494,23 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadow.card,
   },
+  topBarCompact: {
+    top: spacing.sm,
+    left: spacing.md,
+    right: spacing.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
   topBarBrand: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     marginRight: spacing.md,
+    flexShrink: 0,
+  },
+  topBarBrandCompact: {
+    gap: spacing.xs,
+    marginRight: spacing.sm,
   },
   brandMarkSmall: {
     width: 32,
@@ -1458,6 +1519,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  brandMarkSmallCompact: {
+    width: 30,
+    height: 30,
   },
   topBarBrandText: {
     color: colors.textPrimary,
@@ -1472,6 +1537,10 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  topBarIdentityText: {
+    flex: 1,
+    minWidth: 0,
+  },
   userAvatar: {
     width: 36,
     height: 36,
@@ -1482,10 +1551,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.accent,
   },
+  userAvatarCompact: {
+    width: 34,
+    height: 34,
+  },
   userAvatarText: {
     color: colors.accentSoftText,
     fontFamily: fonts.display,
     fontWeight: '800',
+  },
+  topBarNameCompact: {
+    fontSize: 14,
   },
   topBarName: {
     color: colors.textPrimary,
@@ -1507,6 +1583,10 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderWidth: 1,
     borderColor: colors.borderStrong,
+    flexShrink: 0,
+  },
+  topBarLogoutCompact: {
+    paddingHorizontal: spacing.sm,
   },
   topBarLogoutText: {
     color: colors.textPrimary,
@@ -1808,6 +1888,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     marginTop: 4,
+    flexShrink: 0,
   },
   sectionText: {
     color: colors.textSecondary,
@@ -1818,6 +1899,9 @@ const styles = StyleSheet.create({
   auditGrid: {
     flexDirection: 'row',
     gap: spacing.sm,
+  },
+  auditGridCompact: {
+    flexDirection: 'column',
   },
   auditScoreCard: {
     flex: 1,
@@ -1947,6 +2031,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  tabRowCompact: {
+    gap: 2,
+    padding: 3,
+  },
   tabButton: {
     flex: 1,
     borderRadius: radii.pill,
@@ -1958,6 +2046,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'transparent',
   },
+  tabButtonCompact: {
+    paddingVertical: spacing.xs,
+    gap: 3,
+  },
   tabButtonActive: {
     backgroundColor: colors.surfaceElevated,
     borderColor: colors.borderStrong,
@@ -1967,6 +2059,9 @@ const styles = StyleSheet.create({
     fontFamily: fonts.display,
     fontWeight: '700',
     fontSize: 12,
+  },
+  tabLabelCompact: {
+    fontSize: 11,
   },
   tabLabelActive: {
     color: colors.accentHover,
@@ -2027,12 +2122,21 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     flexWrap: 'wrap',
   },
+  jobCardTopCompact: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: spacing.sm,
+  },
   cardActionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
     flexWrap: 'wrap',
     justifyContent: 'flex-end',
+  },
+  cardActionRowCompact: {
+    alignSelf: 'stretch',
+    justifyContent: 'flex-start',
   },
   scorePill: {
     backgroundColor: colors.accentSoft,
@@ -2070,6 +2174,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     flex: 1,
+    minWidth: 0,
+  },
+  posterMiniCompact: {
+    flex: 0,
+    width: '100%',
   },
   posterAvatar: {
     width: 36,
@@ -2098,6 +2207,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing.md,
   },
+  jobCardHeaderCompact: {
+    flexDirection: 'column',
+  },
   jobCategory: {
     color: colors.accent,
     fontSize: 12,
@@ -2115,6 +2227,10 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     alignSelf: 'flex-start',
     minWidth: 128,
+  },
+  amountBlockCompact: {
+    alignSelf: 'stretch',
+    minWidth: 0,
   },
   amountLabel: {
     color: colors.textMuted,
@@ -2161,11 +2277,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
+    maxWidth: '100%',
   },
   jobMetaPillText: {
     color: colors.textSecondary,
     fontFamily: fonts.body,
     fontSize: 12,
+    flexShrink: 1,
   },
   cardFooter: {
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -2176,10 +2294,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
   },
+  cardFooterCompact: {
+    alignItems: 'stretch',
+    flexDirection: 'column',
+    gap: spacing.sm,
+  },
   cardFooterMeta: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
+    flexWrap: 'wrap',
   },
   cardFooterButton: {
     flexDirection: 'row',
@@ -2235,6 +2359,8 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontFamily: fonts.display,
     fontWeight: '800',
+    flex: 1,
+    minWidth: 0,
   },
   messageListMeta: {
     color: colors.textMuted,
@@ -2366,6 +2492,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
   },
+  inlineInputsCompact: {
+    flexDirection: 'column',
+  },
   inlineField: {
     flex: 1,
   },
@@ -2495,6 +2624,22 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 15,
   },
+  secondaryActionButton: {
+    backgroundColor: colors.backgroundTint,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryActionText: {
+    color: colors.accentHover,
+    fontFamily: fonts.display,
+    fontSize: 13,
+    fontWeight: '900',
+  },
   logoutButton: {
     backgroundColor: colors.error,
     borderRadius: radii.lg,
@@ -2530,6 +2675,7 @@ const styles = StyleSheet.create({
   },
   activityContent: {
     flex: 1,
+    minWidth: 0,
   },
   activityTitle: {
     color: colors.textPrimary,
@@ -2542,6 +2688,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: spacing.md,
+    flexWrap: 'wrap',
     backgroundColor: colors.backgroundTint,
     borderRadius: radii.lg,
     borderWidth: 1,
