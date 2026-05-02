@@ -18,6 +18,13 @@ export type GigDraft = {
   description: string;
 };
 
+export type ProfileDraft = {
+  name: string;
+  username: string;
+  password: string;
+  confirmPassword: string;
+};
+
 export type GigReadinessItem = {
   label: string;
   complete: boolean;
@@ -66,6 +73,85 @@ export const toPublicUser = (account: SeedAccount): AppUser => {
   const { password: _password, ...user } = account;
 
   return user;
+};
+
+const profileCopyByRole: Record<UserRole, Pick<AppUser, 'headline' | 'subline'>> = {
+  worker: {
+    headline: 'Find trusted local work',
+    subline: 'Discover paid assignments, send requests, and keep every job conversation organized.',
+  },
+  poster: {
+    headline: 'Hire reliable local talent',
+    subline: 'Post briefs, review applicants, and manage worker conversations from one workspace.',
+  },
+  admin: {
+    headline: 'Operations console',
+    subline: 'Review marketplace quality, request consistency, and fulfillment status.',
+  },
+};
+
+export const createUserProfile = ({
+  accounts,
+  role,
+  draft,
+  now,
+}: {
+  accounts: SeedAccount[];
+  role: UserRole;
+  draft: ProfileDraft;
+  now: number;
+}): ServiceResult<SeedAccount> => {
+  if (role === 'admin') {
+    return {
+      ok: false,
+      message: 'Admin profiles are issued by QuickGig Ops. Sign in with your assigned admin account.',
+    };
+  }
+
+  const name = draft.name.trim().replace(/\s+/g, ' ');
+  const username = draft.username.trim().toLowerCase();
+  const password = draft.password.trim();
+  const confirmPassword = draft.confirmPassword.trim();
+
+  if (!name || !username || !password || !confirmPassword) {
+    return { ok: false, message: 'Complete every profile field before creating access.' };
+  }
+
+  if (name.length < 2) {
+    return { ok: false, message: 'Enter your full name.' };
+  }
+
+  if (!/^[a-z0-9._]{4,24}$/.test(username)) {
+    return {
+      ok: false,
+      message: 'Use a 4-24 character username with letters, numbers, dots, or underscores.',
+    };
+  }
+
+  if (accounts.some((account) => account.username.toLowerCase() === username)) {
+    return { ok: false, message: 'That username is already taken.' };
+  }
+
+  if (password.length < 8 || !/[a-z]/i.test(password) || !/\d/.test(password)) {
+    return { ok: false, message: 'Use a password with at least 8 characters, including a letter and number.' };
+  }
+
+  if (password !== confirmPassword) {
+    return { ok: false, message: 'Passwords do not match.' };
+  }
+
+  return {
+    ok: true,
+    data: {
+      id: `user-${role}-${now}`,
+      name,
+      username,
+      password,
+      role,
+      ...profileCopyByRole[role],
+    },
+    message: `Profile created. Welcome to QuickGig, ${name}.`,
+  };
 };
 
 export const authenticateUser = ({

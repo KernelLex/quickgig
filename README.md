@@ -5,6 +5,7 @@ QuickGig is an Expo and React Native marketplace for trusted short-term local wo
 ## Highlights
 
 - Worker, poster, and admin workspaces
+- Focused access chooser with worker and poster profile creation
 - Search, category filters, saved briefs, and fit indicators
 - Brief-readiness scoring before a poster publishes
 - Request-based chat between workers and posters
@@ -16,7 +17,7 @@ QuickGig is an Expo and React Native marketplace for trusted short-term local wo
 
 ## Seed Accounts
 
-Choose a workspace on the sign-in screen, then enter the matching seed credentials:
+Choose access on the sign-in screen, then enter the matching seed credentials. Worker and poster profiles can also be created directly from their access screens.
 
 | Role | Username | Password |
 | --- | --- | --- |

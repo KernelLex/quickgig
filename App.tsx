@@ -25,6 +25,7 @@ import {
   type AppUser,
   type Gig,
   type GigCategory,
+  type SeedAccount,
   type UserRole,
 } from './src/data/mockData';
 import {
@@ -35,6 +36,7 @@ import {
   buildSuggestedRequestNote,
   calculateGigFitScore,
   createGigFromDraft,
+  createUserProfile,
   decideRequest,
   repairMarketplaceStatuses,
   reconcileGigsWithRequests,
@@ -44,7 +46,7 @@ import {
 import { colors, fonts, radii, shadow, spacing } from './src/theme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
-type LoginStep = 'role' | 'credentials';
+type LoginStep = 'role' | 'credentials' | 'create';
 type WorkerTab = 'discover' | 'saved' | 'requests' | 'account';
 type PosterTab = 'overview' | 'post' | 'requests' | 'account';
 type AdminTab = 'overview' | 'gigs' | 'requests' | 'account';
@@ -61,6 +63,13 @@ const initialGigForm: GigDraft = {
 const initialLoginForm = {
   username: '',
   password: '',
+};
+
+const initialProfileForm = {
+  name: '',
+  username: '',
+  password: '',
+  confirmPassword: '',
 };
 
 const roleOptions: Array<{
@@ -118,6 +127,7 @@ export default function App() {
   const { width } = useWindowDimensions();
   const isWideLayout = width >= 900;
   const compactContentWidth = { width: Math.max(width - spacing.lg * 2, 0) };
+  const [accounts, setAccounts] = useState<SeedAccount[]>(() => appUsers);
   const [authUser, setAuthUser] = useState<AppUser | null>(null);
   const [loginStep, setLoginStep] = useState<LoginStep>('role');
   const [selectedRole, setSelectedRole] = useState<UserRole>('worker');
@@ -132,6 +142,7 @@ export default function App() {
   const [requests, setRequests] = useState<ApplicationRequest[]>(initialRequests);
   const [gigForm, setGigForm] = useState(initialGigForm);
   const [loginForm, setLoginForm] = useState(initialLoginForm);
+  const [profileForm, setProfileForm] = useState(initialProfileForm);
   const [requestMessageDraft, setRequestMessageDraft] = useState('');
   const [chatDrafts, setChatDrafts] = useState<Record<string, string>>({});
   const [savedGigIds, setSavedGigIds] = useState<string[]>([]);
@@ -245,23 +256,10 @@ export default function App() {
   const gigReadinessCount = gigReadinessItems.filter((item) => item.complete).length;
   const gigReadinessPercent = Math.round((gigReadinessCount / gigReadinessItems.length) * 100);
 
-  const handleLogin = () => {
-    const loginResult = authenticateUser({
-      accounts: appUsers,
-      role: selectedRole,
-      username: loginForm.username,
-      password: loginForm.password,
-    });
-
-    if (!loginResult.ok) {
-      setMessage(loginResult.message);
-      return;
-    }
-
-    const user = loginResult.data;
-
+  const openUserWorkspace = (user: AppUser, successMessage: string) => {
     setAuthUser(user);
     setLoginForm(initialLoginForm);
+    setProfileForm(initialProfileForm);
     setSelectedGig(null);
     setActiveRequestId(null);
     setLoginStep('role');
@@ -269,7 +267,7 @@ export default function App() {
     setSavedGigIds([]);
     setSearch('');
     setSelectedCategory('All');
-    setMessage(loginResult.message);
+    setMessage(successMessage);
 
     if (user.role === 'worker') {
       setWorkerTab('discover');
@@ -282,6 +280,39 @@ export default function App() {
     }
   };
 
+  const handleLogin = () => {
+    const loginResult = authenticateUser({
+      accounts,
+      role: selectedRole,
+      username: loginForm.username,
+      password: loginForm.password,
+    });
+
+    if (!loginResult.ok) {
+      setMessage(loginResult.message);
+      return;
+    }
+
+    openUserWorkspace(loginResult.data, loginResult.message);
+  };
+
+  const handleCreateProfile = () => {
+    const createResult = createUserProfile({
+      accounts,
+      role: selectedRole,
+      draft: profileForm,
+      now: Date.now(),
+    });
+
+    if (!createResult.ok) {
+      setMessage(createResult.message);
+      return;
+    }
+
+    setAccounts((current) => [createResult.data, ...current]);
+    openUserWorkspace(createResult.data, createResult.message);
+  };
+
   const handleLogout = () => {
     setAuthUser(null);
     setSelectedGig(null);
@@ -290,6 +321,7 @@ export default function App() {
     setChatDrafts({});
     setSavedGigIds([]);
     setLoginStep('role');
+    setProfileForm(initialProfileForm);
     setMessage('Logged out successfully.');
   };
 
@@ -543,6 +575,33 @@ export default function App() {
     </View>
   );
 
+  const renderAuthBrand = () => (
+    <View style={styles.authBrandCompact}>
+      <View style={styles.brandRow}>
+        <View style={styles.brandMark}>
+          <IconGlyph name="flash-outline" size={22} color={colors.textOnAccent} />
+        </View>
+        <View style={styles.activityContent}>
+          <Text style={styles.loginEyebrow}>QuickGig</Text>
+          <Text style={styles.brandSubline}>Trusted local work</Text>
+        </View>
+      </View>
+    </View>
+  );
+
+  const renderSelectedWorkspaceCard = () => (
+    <View style={styles.selectedWorkspaceCard}>
+      <View style={styles.selectedWorkspaceIcon}>
+        <IconGlyph name={selectedRoleOption.icon} size={18} color={colors.textOnAccent} />
+      </View>
+      <View style={styles.activityContent}>
+        <Text style={styles.workspaceChoiceLabel}>{selectedRoleOption.label}</Text>
+        <Text style={styles.workspaceChoiceTitle}>{selectedRoleOption.title}</Text>
+        <Text style={styles.workspaceChoiceText}>{selectedRoleOption.note}</Text>
+      </View>
+    </View>
+  );
+
   const renderLogin = () => (
     <ScrollView
       contentContainerStyle={[
@@ -552,65 +611,17 @@ export default function App() {
       ]}
       showsVerticalScrollIndicator={false}
     >
-      <View style={[styles.authShell, isWideLayout && styles.authShellWide]}>
-        <View style={[styles.authBrandPanel, isWideLayout && styles.authBrandPanelWide]}>
-          <View style={styles.brandRow}>
-            <View style={styles.brandMark}>
-              <IconGlyph name="flash-outline" size={22} color={colors.textOnAccent} />
-            </View>
-            <View>
-              <Text style={styles.loginEyebrow}>QuickGig</Text>
-              <Text style={styles.brandSubline}>Trusted local work</Text>
-            </View>
-          </View>
-
-          <View style={styles.authCopyBlock}>
-            <Text style={[styles.authTitle, !isWideLayout && styles.authTitleCompact]}>
-              Sign in to manage local work.
-            </Text>
-            <Text style={styles.authSubtitle}>
-              Discover briefs, manage applicants, and keep every request conversation in one focused workspace.
-            </Text>
-          </View>
-
-          <View style={styles.authProcessList}>
-            <View style={styles.authProcessRow}>
-              <View style={styles.authProcessIcon}>
-                <IconGlyph name="grid-outline" size={15} color={colors.accentHover} />
-              </View>
-              <View style={styles.activityContent}>
-                <Text style={styles.authProcessTitle}>Choose workspace</Text>
-                <Text style={styles.authProcessText}>Open the worker, hiring, or operations surface built for your role.</Text>
-              </View>
-            </View>
-            <View style={styles.authProcessRow}>
-              <View style={styles.authProcessIcon}>
-                <IconGlyph name="lock-closed-outline" size={15} color={colors.accentHover} />
-              </View>
-              <View style={styles.activityContent}>
-                <Text style={styles.authProcessTitle}>Verify access</Text>
-                <Text style={styles.authProcessText}>Continue with your assigned QuickGig credentials.</Text>
-              </View>
-            </View>
-            <View style={styles.authProcessRow}>
-              <View style={styles.authProcessIcon}>
-                <IconGlyph name="chatbubble-ellipses-outline" size={15} color={colors.accentHover} />
-              </View>
-              <View style={styles.activityContent}>
-                <Text style={styles.authProcessTitle}>Start working</Text>
-                <Text style={styles.authProcessText}>Requests, decisions, and conversations stay connected end to end.</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        <View style={[styles.authFlowPanel, isWideLayout && styles.authFlowPanelWide]}>
+      <View style={[styles.authShell, isWideLayout && styles.authShellSingle]}>
+        <View style={styles.authFlowPanel}>
+          {renderAuthBrand()}
           {loginStep === 'role' ? (
             <>
-              {renderPanelHeader('Access', 'Choose your workspace')}
+              {renderPanelHeader('Access', 'Choose access')}
               {renderWorkspaceChoices()}
             </>
-          ) : (
+          ) : null}
+
+          {loginStep === 'credentials' ? (
             <>
               <Pressable
                 style={styles.backStepButton}
@@ -623,16 +634,8 @@ export default function App() {
                 <Text style={styles.backStepText}>Change workspace</Text>
               </Pressable>
 
-              <View style={styles.selectedWorkspaceCard}>
-                <View style={styles.selectedWorkspaceIcon}>
-                  <IconGlyph name={selectedRoleOption.icon} size={18} color={colors.textOnAccent} />
-                </View>
-                <View style={styles.activityContent}>
-                  <Text style={styles.workspaceChoiceLabel}>{selectedRoleOption.label}</Text>
-                  <Text style={styles.workspaceChoiceTitle}>{selectedRoleOption.title}</Text>
-                  <Text style={styles.workspaceChoiceText}>{selectedRoleOption.note}</Text>
-                </View>
-              </View>
+              {renderPanelHeader('Sign in', `${selectedRoleOption.label} access`)}
+              {renderSelectedWorkspaceCard()}
 
               <TextInput
                 value={loginForm.username}
@@ -660,8 +663,93 @@ export default function App() {
                   <Text style={styles.primaryButtonText}>Sign in</Text>
                 </View>
               </Pressable>
+              {selectedRole === 'admin' ? (
+                <View style={styles.adminAccessNotice}>
+                  <IconGlyph name="information-circle-outline" size={16} color={colors.accentHover} />
+                  <Text style={styles.adminAccessText}>
+                    Admin profiles are issued by QuickGig Ops.
+                  </Text>
+                </View>
+              ) : (
+                <Pressable
+                  style={styles.authSecondaryButton}
+                  onPress={() => {
+                    setLoginStep('create');
+                    setMessage('');
+                  }}
+                >
+                  <View style={styles.buttonContent}>
+                    <IconGlyph name="person-add-outline" size={17} color={colors.accentHover} />
+                    <Text style={styles.authSecondaryText}>Create {selectedRoleOption.label.toLowerCase()} profile</Text>
+                  </View>
+                </Pressable>
+              )}
             </>
-          )}
+          ) : null}
+
+          {loginStep === 'create' ? (
+            <>
+              <Pressable
+                style={styles.backStepButton}
+                onPress={() => {
+                  setLoginStep('credentials');
+                  setMessage('');
+                }}
+              >
+                <IconGlyph name="arrow-back-outline" size={16} color={colors.accentHover} />
+                <Text style={styles.backStepText}>Use existing profile</Text>
+              </Pressable>
+
+              {renderPanelHeader('New profile', `Create ${selectedRoleOption.label.toLowerCase()} access`)}
+              {renderSelectedWorkspaceCard()}
+
+              <TextInput
+                value={profileForm.name}
+                onChangeText={(value) => setProfileForm((current) => ({ ...current, name: value }))}
+                placeholder="Full name"
+                placeholderTextColor={colors.muted}
+                autoCapitalize="words"
+                autoCorrect={false}
+                returnKeyType="next"
+                style={styles.cleanInput}
+              />
+              <TextInput
+                value={profileForm.username}
+                onChangeText={(value) => setProfileForm((current) => ({ ...current, username: value }))}
+                placeholder="Username"
+                placeholderTextColor={colors.muted}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="next"
+                style={styles.cleanInput}
+              />
+              <TextInput
+                value={profileForm.password}
+                onChangeText={(value) => setProfileForm((current) => ({ ...current, password: value }))}
+                placeholder="Password"
+                placeholderTextColor={colors.muted}
+                secureTextEntry
+                returnKeyType="next"
+                style={styles.cleanInput}
+              />
+              <TextInput
+                value={profileForm.confirmPassword}
+                onChangeText={(value) => setProfileForm((current) => ({ ...current, confirmPassword: value }))}
+                placeholder="Confirm password"
+                placeholderTextColor={colors.muted}
+                secureTextEntry
+                returnKeyType="done"
+                onSubmitEditing={handleCreateProfile}
+                style={styles.cleanInput}
+              />
+              <Pressable style={styles.primaryButton} onPress={handleCreateProfile}>
+                <View style={styles.buttonContent}>
+                  <IconGlyph name="person-add-outline" size={17} color={colors.textOnAccent} />
+                  <Text style={styles.primaryButtonText}>Create profile</Text>
+                </View>
+              </Pressable>
+            </>
+          ) : null}
         </View>
       </View>
     </ScrollView>
@@ -1608,21 +1696,27 @@ const styles = StyleSheet.create({
   authScrollContent: {
     width: '100%',
     padding: spacing.lg,
-    paddingTop: 104,
+    paddingTop: spacing.xl,
     paddingBottom: spacing.xxxl,
-    maxWidth: 1120,
     alignSelf: 'stretch',
+    flexGrow: 1,
+    justifyContent: 'center',
   },
   authScrollContentCompact: {
     paddingTop: spacing.lg,
+    justifyContent: 'flex-start',
   },
   authScrollContentWide: {
-    width: '78%',
+    width: '100%',
     alignSelf: 'center',
   },
   authShell: {
     gap: spacing.lg,
     width: '100%',
+  },
+  authShellSingle: {
+    alignSelf: 'center',
+    maxWidth: 560,
   },
   authShellWide: {
     flexDirection: 'row',
@@ -1715,6 +1809,12 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     marginTop: 3,
   },
+  authBrandCompact: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+    paddingBottom: spacing.md,
+    marginBottom: spacing.xs,
+  },
   workspaceChoiceList: {
     gap: spacing.sm,
   },
@@ -1801,6 +1901,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.accent,
+  },
+  authSecondaryButton: {
+    backgroundColor: colors.backgroundTint,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  authSecondaryText: {
+    color: colors.accentHover,
+    fontFamily: fonts.display,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  adminAccessNotice: {
+    backgroundColor: colors.backgroundTint,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  adminAccessText: {
+    color: colors.textSecondary,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    lineHeight: 19,
+    flex: 1,
   },
   brandRow: {
     flexDirection: 'row',
