@@ -7,10 +7,13 @@ export type AppUser = {
   id: string;
   name: string;
   username: string;
-  password: string;
   role: UserRole;
   headline: string;
   subline: string;
+};
+
+export type SeedAccount = AppUser & {
+  password: string;
 };
 
 export type ChatMessage = {
@@ -56,7 +59,7 @@ export const postableCategories: Array<Exclude<GigCategory, 'All'>> = [
   'Promo',
 ];
 
-export const appUsers: AppUser[] = [
+export const appUsers: SeedAccount[] = [
   {
     id: 'user-worker-1',
     name: 'Riya Mehta',
@@ -143,7 +146,7 @@ export const initialGigs: Gig[] = [
       'Basic smartphone skills for route updates',
       'Available from 4 PM to 9 PM',
     ],
-    status: 'Open',
+    status: 'Assigned',
   },
   {
     id: 'gig-2',
@@ -181,7 +184,7 @@ export const initialGigs: Gig[] = [
       'Can work from 10 AM to 6 PM',
       'Prior packing or shifting help is a plus',
     ],
-    status: 'Open',
+    status: 'Reviewing',
   },
   {
     id: 'gig-4',

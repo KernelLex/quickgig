@@ -1,45 +1,77 @@
 # QuickGig
 
-QuickGig is an Android-ready Expo marketplace for trusted short-term local work. It includes separate worker, poster, and admin workspaces, request-based messaging, saved briefs, applicant decisions, and marketplace-quality checks designed for a production-style mobile experience.
+QuickGig is an Expo and React Native marketplace for trusted short-term local work. Workers can discover and save briefs, posters can publish and manage requests, and admins can review marketplace health from a polished dark mobile interface.
 
-## Run locally
+## Highlights
 
-```bash
-npm install
-npm run android
+- Worker, poster, and admin workspaces
+- Search, category filters, saved briefs, and fit indicators
+- Brief-readiness scoring before a poster publishes
+- Request-based chat between workers and posters
+- Duplicate request protection
+- Applicant accept/reject decisions with automatic closure of competing pending requests
+- Backend-style marketplace rules in `src/backend/marketplace.ts`
+- Admin operational audit for status mismatches, duplicate requests, and assignment issues
+- Android-ready Expo configuration with dark system UI support
+
+## Seed Accounts
+
+Use the saved profiles on the sign-in screen, or enter the seed credentials directly:
+
+| Role | Username | Password |
+| --- | --- | --- |
+| Worker | `riya.worker` | `QuickGig123` |
+| Worker | `karan.worker` | `QuickGig456` |
+| Worker | `maya.worker` | `QuickGig789` |
+| Poster | `aarav.poster` | `PosterPass123` |
+| Admin | `admin.quickgig` | `AdminPass123` |
+
+## Project Structure
+
+```text
+App.tsx                         Main app shell and role workspaces
+src/backend/marketplace.ts      Business rules and data consistency logic
+src/data/mockData.ts            Seed users, briefs, and requests
+src/theme.ts                    Dark Material-style design tokens
+assets/                         Expo app icons and splash assets
 ```
 
-If you want to preview it in the browser first:
+## Local Development
 
-```bash
+```powershell
+npm install
 npm run web
 ```
 
-## What is included
-
-- Role-based login for workers, posters, and admins
-- Worker gig discovery flow with search, category filters, saved briefs, and fit indicators
-- Gig posting flow for posters
-- Brief-readiness checks for stronger listings
-- Request-based chat between workers and posters before accept/reject
-- Duplicate request protection and automatic closure of competing requests after assignment
-- Admin overview for gigs and request activity
-- Android-ready Expo configuration for local builds
-
-## Build notes
-
-This project was scaffolded with Expo and verified with:
+Run on Android:
 
 ```powershell
-npx tsc --noEmit
+npm run android
+```
+
+## Verification
+
+```powershell
+npm run typecheck
 $exportDir = Join-Path $env:TEMP "quickgig-export"
 npx expo export --platform android --output-dir $exportDir
 ```
 
-For a local Windows test APK:
+## Build A Test APK
+
+The local Windows APK build is most reliable outside OneDrive or with the Android output generated fresh. This project currently builds a modern Android test APK for `arm64-v8a`.
 
 ```powershell
+npm run prebuild:android
 cd android
 $env:NODE_ENV = "production"
 .\gradlew.bat assembleRelease -PreactNativeArchitectures=arm64-v8a
 ```
+
+The generated release APK is signed with the debug certificate for device testing. For Play Store release, replace the debug signing config with a production keystore.
+
+## Notes
+
+- `newArchEnabled` is disabled in `app.json` to avoid a Windows/Gradle hardlink snapshot issue in native CMake outputs.
+- `expo-system-ui` is installed so the Android dark interface style is applied consistently.
+- Local APKs, native build folders, logs, screenshots, and Expo output are ignored by git.

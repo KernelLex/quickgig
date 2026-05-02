@@ -29,6 +29,19 @@ import {
   type GigCategory,
   type UserRole,
 } from './src/data/mockData';
+import {
+  appendChatMessage,
+  auditMarketplace,
+  authenticateUser,
+  buildGigReadiness,
+  buildSuggestedRequestNote,
+  calculateGigFitScore,
+  createGigFromDraft,
+  decideRequest,
+  reconcileGigsWithRequests,
+  submitRequestForGig,
+  type GigDraft,
+} from './src/backend/marketplace';
 import { colors, fonts, radii, shadow, spacing } from './src/theme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -36,7 +49,7 @@ type WorkerTab = 'discover' | 'saved' | 'requests' | 'account';
 type PosterTab = 'overview' | 'post' | 'requests' | 'account';
 type AdminTab = 'overview' | 'gigs' | 'requests' | 'account';
 
-const initialGigForm = {
+const initialGigForm: GigDraft = {
   title: '',
   location: '',
   pay: '',
@@ -99,9 +112,6 @@ const quickStatIcons: IconName[] = ['briefcase-outline', 'wallet-outline', 'time
 
 const formatPay = (pay: number) => `Rs ${pay.toLocaleString('en-IN')}`;
 
-const getGigMatchScore = (gig: Gig) =>
-  Math.min(98, Math.round(gig.rating * 15 + Math.min(gig.applicants, 18) + (gig.status === 'Open' ? 8 : 3)));
-
 const IconGlyph = ({
   name,
   size = 18,
@@ -125,7 +135,7 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [selectedGig, setSelectedGig] = useState<Gig | null>(null);
   const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
-  const [gigs, setGigs] = useState<Gig[]>(initialGigs);
+  const [gigs, setGigs] = useState<Gig[]>(() => reconcileGigsWithRequests(initialGigs, initialRequests));
   const [requests, setRequests] = useState<ApplicationRequest[]>(initialRequests);
   const [gigForm, setGigForm] = useState(initialGigForm);
   const [loginForm, setLoginForm] = useState(initialLoginForm);
@@ -223,43 +233,34 @@ export default function App() {
       totalUsers: appUsers.length,
       liveGigs: gigs.filter((gig) => gig.status !== 'Assigned').length,
       pendingRequests: requests.filter((request) => request.status === 'Pending').length,
+      assignedGigs: gigs.filter((gig) => gig.status === 'Assigned').length,
     }),
     [gigs, requests],
   );
 
+  const marketplaceAudit = useMemo(() => auditMarketplace(gigs, requests), [gigs, requests]);
+
   const gigReadinessItems = useMemo(
-    () => [
-      { label: 'Clear title', complete: Boolean(gigForm.title.trim()) },
-      { label: 'Exact location', complete: Boolean(gigForm.location.trim()) },
-      { label: 'Payout added', complete: Number(gigForm.pay.replace(/,/g, '')) > 0 },
-      { label: 'Timing set', complete: Boolean(gigForm.duration.trim()) },
-      { label: 'Detailed scope', complete: gigForm.description.trim().length >= 40 },
-    ],
+    () => buildGigReadiness(gigForm),
     [gigForm],
   );
   const gigReadinessCount = gigReadinessItems.filter((item) => item.complete).length;
   const gigReadinessPercent = Math.round((gigReadinessCount / gigReadinessItems.length) * 100);
 
   const handleLogin = () => {
-    const username = loginForm.username.trim().toLowerCase();
-    const password = loginForm.password.trim();
+    const loginResult = authenticateUser({
+      accounts: appUsers,
+      role: selectedRole,
+      username: loginForm.username,
+      password: loginForm.password,
+    });
 
-    if (!username || !password) {
-      setMessage('Enter your username and password.');
+    if (!loginResult.ok) {
+      setMessage(loginResult.message);
       return;
     }
 
-    const user = appUsers.find(
-      (account) =>
-        account.role === selectedRole &&
-        account.username.toLowerCase() === username &&
-        account.password === password,
-    );
-
-    if (!user) {
-      setMessage('Login failed. Check the role, username, and password.');
-      return;
-    }
+    const user = loginResult.data;
 
     setAuthUser(user);
     setLoginForm(initialLoginForm);
@@ -269,7 +270,7 @@ export default function App() {
     setSavedGigIds([]);
     setSearch('');
     setSelectedCategory('All');
-    setMessage(`Welcome back, ${user.name}.`);
+    setMessage(loginResult.message);
 
     if (user.role === 'worker') {
       setWorkerTab('discover');
@@ -303,47 +304,21 @@ export default function App() {
       return;
     }
 
-    if (
-      !gigForm.title.trim() ||
-      !gigForm.location.trim() ||
-      !gigForm.pay.trim() ||
-      !gigForm.duration.trim() ||
-      !gigForm.description.trim()
-    ) {
-      setMessage('Fill in the title, location, pay, duration, and description before posting.');
+    const createResult = createGigFromDraft({
+      draft: gigForm,
+      posterName: authUser.name,
+      now: Date.now(),
+    });
+
+    if (!createResult.ok) {
+      setMessage(createResult.message);
       return;
     }
 
-    const pay = Number(gigForm.pay.replace(/,/g, ''));
-
-    if (Number.isNaN(pay) || pay <= 0) {
-      setMessage('Enter a valid rupee amount for the payout.');
-      return;
-    }
-
-    const newGig: Gig = {
-      id: `gig-${Date.now()}`,
-      title: gigForm.title.trim(),
-      category: gigForm.category,
-      location: gigForm.location.trim(),
-      pay,
-      duration: gigForm.duration.trim(),
-      applicants: 0,
-      postedBy: authUser.name,
-      rating: 5,
-      description: gigForm.description.trim(),
-      requirements: [
-        'Available for the full short assignment',
-        'Can send updates during the job',
-        'Ready to start within 24 hours if selected',
-      ],
-      status: 'Open',
-    };
-
-    setGigs((current) => [newGig, ...current]);
+    setGigs((current) => [createResult.data, ...current]);
     setGigForm(initialGigForm);
     setPosterTab('overview');
-    setMessage('Brief published. Applicant requests are open.');
+    setMessage(createResult.message);
   };
 
   const handleSendRequest = () => {
@@ -351,61 +326,37 @@ export default function App() {
       return;
     }
 
-    const existingRequest = requests.find(
-      (request) => request.gigId === selectedGig.id && request.workerName === authUser.name,
-    );
+    const requestResult = submitRequestForGig({
+      gig: selectedGig,
+      requests,
+      workerName: authUser.name,
+      note: requestMessageDraft,
+      now: Date.now(),
+    });
 
-    if (existingRequest) {
+    if (!requestResult.ok) {
+      setMessage(requestResult.message);
+      return;
+    }
+
+    if (requestResult.data.duplicate) {
       setSelectedGig(null);
       setRequestMessageDraft('');
-      setActiveRequestId(existingRequest.id);
+      setActiveRequestId(requestResult.data.request.id);
       setWorkerTab('requests');
-      setMessage('You already have a request thread for this brief.');
+      setMessage(requestResult.message);
       return;
     }
 
-    if (selectedGig.status === 'Assigned') {
-      setSelectedGig(null);
-      setMessage('This brief has already been assigned.');
-      return;
-    }
+    const { request, updatedGig } = requestResult.data;
 
-    if (!requestMessageDraft.trim()) {
-      setMessage('Write a short introduction before sending your request.');
-      return;
-    }
-
-    const newRequest: ApplicationRequest = {
-      id: `req-${Date.now()}`,
-      gigId: selectedGig.id,
-      gigTitle: selectedGig.title,
-      workerName: authUser.name,
-      workerNote: requestMessageDraft.trim(),
-      status: 'Pending',
-      conversation: [
-        {
-          id: `msg-${Date.now()}`,
-          senderRole: 'worker',
-          senderName: authUser.name,
-          text: requestMessageDraft.trim(),
-          timestamp: 'Just now',
-        },
-      ],
-    };
-
-    setRequests((current) => [newRequest, ...current]);
-    setGigs((current) =>
-      current.map((gig) =>
-        gig.id === selectedGig.id
-          ? { ...gig, applicants: gig.applicants + 1, status: gig.status === 'Open' ? 'Reviewing' : gig.status }
-          : gig,
-      ),
-    );
+    setRequests((current) => [request, ...current]);
+    setGigs((current) => current.map((gig) => (updatedGig && gig.id === updatedGig.id ? updatedGig : gig)));
     setSelectedGig(null);
     setRequestMessageDraft('');
-    setActiveRequestId(newRequest.id);
+    setActiveRequestId(request.id);
     setWorkerTab('requests');
-    setMessage('Request sent. The thread is now active.');
+    setMessage(requestResult.message);
   };
 
   const handleSendChatMessage = (requestId: string) => {
@@ -413,32 +364,21 @@ export default function App() {
       return;
     }
 
-    const draft = (chatDrafts[requestId] ?? '').trim();
+    const chatResult = appendChatMessage({
+      requests,
+      requestId,
+      senderRole: authUser.role === 'poster' ? 'poster' : 'worker',
+      senderName: authUser.name,
+      text: chatDrafts[requestId] ?? '',
+      now: Date.now(),
+    });
 
-    if (!draft) {
-      setMessage('Write a message before sending.');
+    if (!chatResult.ok) {
+      setMessage(chatResult.message);
       return;
     }
 
-    setRequests((current) =>
-      current.map((request) =>
-        request.id === requestId
-          ? {
-              ...request,
-              conversation: [
-                ...request.conversation,
-                {
-                  id: `msg-${Date.now()}-${request.id}`,
-                  senderRole: authUser.role === 'poster' ? 'poster' : 'worker',
-                  senderName: authUser.name,
-                  text: draft,
-                  timestamp: 'Just now',
-                },
-              ],
-            }
-          : request,
-      ),
-    );
+    setRequests(chatResult.data);
     setChatDrafts((current) => ({ ...current, [requestId]: '' }));
   };
 
@@ -447,79 +387,24 @@ export default function App() {
       return;
     }
 
-    const targetRequest = requests.find((request) => request.id === requestId);
+    const decisionResult = decideRequest({
+      gigs,
+      requests,
+      requestId,
+      decision,
+      posterName: authUser.name,
+      now: Date.now(),
+    });
 
-    if (!targetRequest) {
-      setMessage('Request not found.');
+    if (!decisionResult.ok) {
+      setMessage(decisionResult.message);
       return;
     }
 
-    if (targetRequest.status !== 'Pending') {
-      setMessage(`This request is already ${targetRequest.status.toLowerCase()}.`);
-      return;
-    }
-
-    setRequests((current) =>
-      current.map((request) => {
-        if (request.id === requestId) {
-          return {
-            ...request,
-            status: decision,
-            conversation: [
-              ...request.conversation,
-              {
-                id: `msg-${Date.now()}-${request.id}-decision`,
-                senderRole: 'poster',
-                senderName: authUser.name,
-                text:
-                  decision === 'Accepted'
-                    ? 'You have been accepted for this gig. Please check the schedule and be ready to start.'
-                    : 'Thank you for applying. We are moving ahead with another worker for this task.',
-                timestamp: 'Just now',
-              },
-            ],
-          };
-        }
-
-        if (
-          decision === 'Accepted' &&
-          request.gigId === targetRequest.gigId &&
-          request.status === 'Pending'
-        ) {
-          return {
-            ...request,
-            status: 'Rejected',
-            conversation: [
-              ...request.conversation,
-              {
-                id: `msg-${Date.now()}-${request.id}-auto-close`,
-                senderRole: 'poster',
-                senderName: authUser.name,
-                text: 'This brief has now been assigned. Thanks for applying and staying available.',
-                timestamp: 'Just now',
-              },
-            ],
-          };
-        }
-
-        return request;
-      }),
-    );
-
-    if (targetRequest && decision === 'Accepted') {
-      setGigs((current) =>
-        current.map((gig) =>
-          gig.id === targetRequest.gigId ? { ...gig, status: 'Assigned' } : gig,
-        ),
-      );
-    }
-
+    setGigs(decisionResult.data.gigs);
+    setRequests(decisionResult.data.requests);
     setActiveRequestId(requestId);
-    setMessage(
-      decision === 'Accepted'
-        ? 'Worker accepted. Other pending requests for this brief were closed.'
-        : 'Worker rejected and informed in the chat.',
-    );
+    setMessage(decisionResult.message);
   };
 
   const renderStatusBadge = (status: Gig['status'] | ApplicationRequest['status']) => {
@@ -913,7 +798,7 @@ export default function App() {
   const renderGigCard = (gig: Gig) => {
     const saved = savedGigIds.includes(gig.id);
     const requested = requestedGigIds.has(gig.id);
-    const matchScore = getGigMatchScore(gig);
+    const matchScore = calculateGigFitScore(gig);
 
     return (
       <View key={gig.id} style={[styles.jobCard, requested && styles.jobCardHighlighted]}>
@@ -1386,20 +1271,65 @@ export default function App() {
         </View>
         <View style={styles.miniCard}>
           <View style={styles.statIconBubble}>
-            <IconGlyph name="time-outline" size={18} color={colors.accentHover} />
+            <IconGlyph name="speedometer-outline" size={18} color={colors.accentHover} />
           </View>
-          <Text style={styles.miniCardValue}>{adminStats.pendingRequests}</Text>
-          <Text style={styles.miniCardLabel}>Pending requests</Text>
+          <Text style={styles.miniCardValue}>{marketplaceAudit.healthScore}</Text>
+          <Text style={styles.miniCardLabel}>Health score</Text>
         </View>
       </View>
       {renderAdminTabs()}
 
       {adminTab === 'overview' ? (
         <View style={styles.formCard}>
-          {renderPanelHeader('Overview', 'Marketplace health')}
+          {renderPanelHeader('Overview', 'Marketplace health', `${adminStats.pendingRequests} pending`)}
           <Text style={styles.sectionText}>
             Live supply, request quality, and fulfillment status across the marketplace.
           </Text>
+          <View style={styles.auditGrid}>
+            <View style={styles.auditScoreCard}>
+              <IconGlyph name="shield-checkmark-outline" size={20} color={colors.accentHover} />
+              <View>
+                <Text style={styles.auditScoreValue}>{marketplaceAudit.healthScore}/100</Text>
+                <Text style={styles.auditScoreLabel}>Operational score</Text>
+              </View>
+            </View>
+            <View style={styles.auditScoreCard}>
+              <IconGlyph name="ribbon-outline" size={20} color={colors.accentHover} />
+              <View>
+                <Text style={styles.auditScoreValue}>{adminStats.assignedGigs}</Text>
+                <Text style={styles.auditScoreLabel}>Assigned briefs</Text>
+              </View>
+            </View>
+          </View>
+          <View style={styles.auditList}>
+            {marketplaceAudit.issues.slice(0, 4).map((issue) => (
+              <View key={issue.id} style={styles.auditIssueRow}>
+                <View style={styles.auditIssueIcon}>
+                  <IconGlyph
+                    name={issue.severity === 'High' ? 'alert-circle-outline' : 'information-circle-outline'}
+                    size={15}
+                    color={issue.severity === 'High' ? colors.error : colors.badgeText}
+                  />
+                </View>
+                <View style={styles.activityContent}>
+                  <Text style={styles.auditIssueTitle}>{issue.title}</Text>
+                  <Text style={styles.auditIssueText}>{issue.detail}</Text>
+                </View>
+                <Text style={styles.auditSeverity}>{issue.severity}</Text>
+              </View>
+            ))}
+            {marketplaceAudit.issues.length === 0 ? (
+              <View style={styles.auditIssueRow}>
+                <View style={styles.auditIssueIcon}>
+                  <IconGlyph name="checkmark-circle-outline" size={15} color={colors.success} />
+                </View>
+                <View style={styles.activityContent}>
+                  <Text style={styles.auditIssueTitle}>No operational issues</Text>
+                  <Text style={styles.auditIssueText}>Requests and brief statuses are in sync.</Text>
+                </View>
+              </View>
+            ) : null}
+          </View>
         </View>
       ) : null}
 
@@ -1500,6 +1430,15 @@ export default function App() {
                   ) : (
                     <>
                       <Text style={styles.modalSectionTitle}>Request note</Text>
+                      <Pressable
+                        style={styles.assistButton}
+                        onPress={() =>
+                          setRequestMessageDraft(buildSuggestedRequestNote(selectedGig, authUser?.name ?? ''))
+                        }
+                      >
+                        <IconGlyph name="create-outline" size={15} color={colors.accentHover} />
+                        <Text style={styles.assistButtonText}>Draft a polished note</Text>
+                      </Pressable>
                       <TextInput
                         value={requestMessageDraft}
                         onChangeText={setRequestMessageDraft}
@@ -2012,6 +1951,76 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 15,
     lineHeight: 22,
+  },
+  auditGrid: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  auditScoreCard: {
+    flex: 1,
+    backgroundColor: colors.backgroundTint,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  auditScoreValue: {
+    color: colors.textPrimary,
+    fontFamily: fonts.display,
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  auditScoreLabel: {
+    color: colors.textMuted,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  auditList: {
+    gap: spacing.sm,
+  },
+  auditIssueRow: {
+    backgroundColor: colors.backgroundTint,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  auditIssueIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  auditIssueTitle: {
+    color: colors.textPrimary,
+    fontFamily: fonts.display,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  auditIssueText: {
+    color: colors.textMuted,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 2,
+  },
+  auditSeverity: {
+    color: colors.textMuted,
+    fontFamily: fonts.display,
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
   },
   workspaceRow: {
     flexDirection: 'row',
@@ -2539,6 +2548,24 @@ const styles = StyleSheet.create({
   },
   largeInput: {
     minHeight: 112,
+  },
+  assistButton: {
+    backgroundColor: colors.backgroundTint,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+  },
+  assistButtonText: {
+    color: colors.accentHover,
+    fontFamily: fonts.display,
+    fontSize: 13,
+    fontWeight: '900',
   },
   readinessCard: {
     backgroundColor: colors.backgroundTint,
