@@ -191,7 +191,7 @@ export const authenticateUser = ({
 };
 
 export const buildGigReadiness = (draft: GigDraft): GigReadinessItem[] => [
-  { label: 'Clear title', complete: Boolean(draft.title.trim()) },
+  { label: 'Clear title', complete: draft.title.trim().replace(/\s+/g, ' ').length >= 8 },
   { label: 'Exact location', complete: Boolean(draft.location.trim()) },
   { label: 'Payout added', complete: parsePay(draft.pay) !== null },
   { label: 'Timing set', complete: Boolean(draft.duration.trim()) },
@@ -208,13 +208,17 @@ export const createGigFromDraft = ({
   now: number;
 }): ServiceResult<Gig> => {
   const pay = parsePay(draft.pay);
+  const title = draft.title.trim().replace(/\s+/g, ' ');
+  const location = draft.location.trim().replace(/\s+/g, ' ');
+  const duration = draft.duration.trim().replace(/\s+/g, ' ');
+  const description = draft.description.trim().replace(/\s+/g, ' ');
 
   if (
-    !draft.title.trim() ||
-    !draft.location.trim() ||
+    !title ||
+    !location ||
     !draft.pay.trim() ||
-    !draft.duration.trim() ||
-    !draft.description.trim()
+    !duration ||
+    !description
   ) {
     return {
       ok: false,
@@ -222,23 +226,31 @@ export const createGigFromDraft = ({
     };
   }
 
+  if (title.length < 8) {
+    return { ok: false, message: 'Use a clear brief title with at least 8 characters.' };
+  }
+
   if (pay === null) {
     return { ok: false, message: 'Enter a valid rupee amount for the payout.' };
+  }
+
+  if (description.length < 40) {
+    return { ok: false, message: 'Add at least 40 characters of scope so workers know what to expect.' };
   }
 
   return {
     ok: true,
     data: {
       id: `gig-${now}`,
-      title: draft.title.trim(),
+      title,
       category: draft.category,
-      location: draft.location.trim(),
+      location,
       pay,
-      duration: draft.duration.trim(),
+      duration,
       applicants: 0,
       postedBy: posterName,
       rating: 5,
-      description: draft.description.trim(),
+      description,
       requirements: [
         'Available for the full short assignment',
         'Can send updates during the job',

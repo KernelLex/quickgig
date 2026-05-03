@@ -126,6 +126,7 @@ const IconGlyph = ({
 export default function App() {
   const { width } = useWindowDimensions();
   const isWideLayout = width >= 900;
+  const isVeryNarrowLayout = width < 340;
   const compactContentWidth = useMemo(
     () => ({
       width: '100%' as const,
@@ -238,11 +239,35 @@ export default function App() {
   );
 
   const activeRequests = authUser?.role === 'worker' ? workerRequests : posterRequests;
+  const requestWorkspaceOpen =
+    authUser?.role === 'worker'
+      ? workerTab === 'requests'
+      : authUser?.role === 'poster'
+        ? posterTab === 'requests'
+        : false;
 
   const activeRequest = useMemo(
     () => activeRequests.find((request) => request.id === activeRequestId) ?? null,
     [activeRequestId, activeRequests],
   );
+
+  useEffect(() => {
+    if (!requestWorkspaceOpen) {
+      return;
+    }
+
+    if (activeRequests.length === 0) {
+      if (activeRequestId) {
+        setActiveRequestId(null);
+      }
+
+      return;
+    }
+
+    if (!activeRequests.some((request) => request.id === activeRequestId)) {
+      setActiveRequestId(activeRequests[0].id);
+    }
+  }, [activeRequestId, activeRequests, requestWorkspaceOpen]);
 
   const selectedRoleOption = roleOptions.find((role) => role.key === selectedRole) ?? roleOptions[0];
 
@@ -507,10 +532,10 @@ export default function App() {
   };
 
   const renderPanelHeader = (eyebrow: string, title: string, action?: string) => (
-    <View style={styles.panelHeader}>
+    <View style={[styles.panelHeader, !isWideLayout && styles.panelHeaderCompact]}>
       <View style={styles.activityContent}>
         <Text style={styles.sectionEyebrow}>{eyebrow}</Text>
-        <Text style={styles.sectionTitle}>{title}</Text>
+        <Text style={[styles.sectionTitle, !isWideLayout && styles.sectionTitleCompact]}>{title}</Text>
       </View>
       {action ? <Text style={styles.panelAction}>{action}</Text> : null}
     </View>
@@ -523,7 +548,9 @@ export default function App() {
           <View style={[styles.brandMarkSmall, !isWideLayout && styles.brandMarkSmallCompact]}>
             <IconGlyph name="flash-outline" size={17} color={colors.textOnAccent} />
           </View>
-          <Text style={styles.topBarBrandText} numberOfLines={1}>QuickGig</Text>
+          {!isVeryNarrowLayout ? (
+            <Text style={styles.topBarBrandText} numberOfLines={1}>QuickGig</Text>
+          ) : null}
         </View>
         <View style={styles.topBarIdentity}>
           <View style={[styles.userAvatar, !isWideLayout && styles.userAvatarCompact]}>
@@ -616,6 +643,7 @@ export default function App() {
         !isWideLayout && styles.authScrollContentCompact,
         isWideLayout && styles.authScrollContentWide,
       ]}
+      keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
       <View style={[styles.authShell, isWideLayout && styles.authShellSingle]}>
@@ -1001,7 +1029,10 @@ export default function App() {
               {requested ? 'Request thread active' : 'Shortlist-ready local brief'}
             </Text>
           </View>
-          <Pressable style={styles.cardFooterButton} onPress={() => setSelectedGig(gig)}>
+          <Pressable
+            style={[styles.cardFooterButton, !isWideLayout && styles.cardFooterButtonCompact]}
+            onPress={() => setSelectedGig(gig)}
+          >
             <Text style={styles.cardFooterAction}>{requested ? 'Open brief' : 'View brief'}</Text>
             <IconGlyph name="arrow-forward-outline" size={15} color={colors.accentHover} />
           </Pressable>
@@ -1017,9 +1048,10 @@ export default function App() {
         !isWideLayout && compactContentWidth,
         isWideLayout && styles.appScrollContentWide,
       ]}
+      keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-        <View style={styles.headerPanel}>
+        <View style={[styles.headerPanel, !isWideLayout && styles.headerPanelCompact]}>
           <View style={styles.headerTopLine}>
             <Text style={styles.headerEyebrow}>Worker marketplace</Text>
             <View style={styles.headerBadge}>
@@ -1027,7 +1059,7 @@ export default function App() {
               <Text style={styles.headerBadgeText}>Live briefs</Text>
             </View>
           </View>
-        <Text style={styles.headerTitle}>{authUser?.headline}</Text>
+        <Text style={[styles.headerTitle, !isWideLayout && styles.headerTitleCompact]}>{authUser?.headline}</Text>
         <Text style={styles.headerSubtitle}>{authUser?.subline}</Text>
       </View>
       {renderWorkerTabs()}
@@ -1150,9 +1182,10 @@ export default function App() {
           !isWideLayout && compactContentWidth,
           isWideLayout && styles.appScrollContentWide,
         ]}
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.headerPanel}>
+        <View style={[styles.headerPanel, !isWideLayout && styles.headerPanelCompact]}>
           <View style={styles.headerTopLine}>
             <Text style={styles.headerEyebrow}>Poster workspace</Text>
             <View style={styles.headerBadge}>
@@ -1160,7 +1193,7 @@ export default function App() {
               <Text style={styles.headerBadgeText}>Hiring board</Text>
             </View>
           </View>
-          <Text style={styles.headerTitle}>{authUser?.headline}</Text>
+          <Text style={[styles.headerTitle, !isWideLayout && styles.headerTitleCompact]}>{authUser?.headline}</Text>
           <Text style={styles.headerSubtitle}>{authUser?.subline}</Text>
         </View>
         {renderPosterTabs()}
@@ -1169,14 +1202,14 @@ export default function App() {
           <View style={styles.surfaceCard}>
             {renderPanelHeader('Manage', 'Your active briefs', `${posterOwnedGigs.length} listed`)}
             {posterOwnedGigs.map((gig) => (
-              <View key={gig.id} style={styles.managementCard}>
+              <View key={gig.id} style={[styles.managementCard, !isWideLayout && styles.managementCardCompact]}>
                 <View style={styles.activityContent}>
                   <Text style={styles.activityTitle}>{gig.title}</Text>
                   <Text style={styles.activityMeta}>
                     {gig.location} - {gig.duration}
                   </Text>
                 </View>
-                <View style={styles.managementSide}>
+                <View style={[styles.managementSide, !isWideLayout && styles.managementSideCompact]}>
                   <Text style={styles.managementAmount}>{formatPay(gig.pay)}</Text>
                   {renderStatusBadge(gig.status)}
                 </View>
@@ -1339,9 +1372,10 @@ export default function App() {
         !isWideLayout && compactContentWidth,
         isWideLayout && styles.appScrollContentWide,
       ]}
+      keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.headerPanel}>
+      <View style={[styles.headerPanel, !isWideLayout && styles.headerPanelCompact]}>
         <View style={styles.headerTopLine}>
           <Text style={styles.headerEyebrow}>Operations</Text>
           <View style={styles.headerBadge}>
@@ -1349,7 +1383,7 @@ export default function App() {
             <Text style={styles.headerBadgeText}>Admin control</Text>
           </View>
         </View>
-        <Text style={styles.headerTitle}>{authUser?.headline}</Text>
+        <Text style={[styles.headerTitle, !isWideLayout && styles.headerTitleCompact]}>{authUser?.headline}</Text>
         <Text style={styles.headerSubtitle}>{authUser?.subline}</Text>
       </View>
       {renderAdminTabs()}
@@ -1420,7 +1454,7 @@ export default function App() {
         <View style={styles.surfaceCard}>
           {renderPanelHeader('Supply', 'All work briefs', `${gigs.length} total`)}
           {gigs.map((gig) => (
-            <View key={gig.id} style={styles.managementCard}>
+            <View key={gig.id} style={[styles.managementCard, !isWideLayout && styles.managementCardCompact]}>
               <View style={styles.activityContent}>
                 <Text style={styles.activityTitle}>{gig.title}</Text>
                 <Text style={styles.activityMeta}>
@@ -1437,7 +1471,7 @@ export default function App() {
         <View style={styles.surfaceCard}>
           {renderPanelHeader('Demand', 'All requests', `${requests.length} total`)}
           {requests.map((request) => (
-            <View key={request.id} style={styles.managementCard}>
+            <View key={request.id} style={[styles.managementCard, !isWideLayout && styles.managementCardCompact]}>
               <View style={styles.activityContent}>
                 <Text style={styles.activityTitle}>{request.workerName}</Text>
                 <Text style={styles.activityMeta}>
@@ -1479,10 +1513,14 @@ export default function App() {
           onRequestClose={() => setSelectedGig(null)}
         >
           <View style={styles.modalOverlay}>
-            <View style={styles.modalCard}>
+            <View style={[styles.modalCard, !isWideLayout && styles.modalCardCompact]}>
               {selectedGig ? (
-                <>
-                  <View style={styles.modalHeader}>
+                <ScrollView
+                  contentContainerStyle={styles.modalScrollContent}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                >
+                  <View style={[styles.modalHeader, !isWideLayout && styles.modalHeaderCompact]}>
                     <View style={styles.activityContent}>
                       <Text style={styles.jobCategory}>{selectedGig.category}</Text>
                       <Text style={styles.modalTitle}>{selectedGig.title}</Text>
@@ -1533,15 +1571,18 @@ export default function App() {
                       />
                     </>
                   )}
-                  <View style={styles.modalFooter}>
-                    <View>
+                  <View style={[styles.modalFooter, !isWideLayout && styles.modalFooterCompact]}>
+                    <View style={styles.modalFooterPoster}>
                       <View style={styles.modalFooterTitleRow}>
                         <IconGlyph name="business-outline" size={14} color={colors.textMuted} />
                         <Text style={styles.modalFooterTitle}>Poster</Text>
                       </View>
                       <Text style={styles.modalFooterText}>{selectedGig.postedBy}</Text>
                     </View>
-                    <Pressable style={styles.primaryButton} onPress={handleSendRequest}>
+                    <Pressable
+                      style={[styles.primaryButton, !isWideLayout && styles.modalPrimaryButtonCompact]}
+                      onPress={handleSendRequest}
+                    >
                       <View style={styles.buttonContent}>
                         <IconGlyph
                           name={selectedGigAlreadyRequested ? 'chatbubble-ellipses-outline' : 'paper-plane-outline'}
@@ -1554,7 +1595,7 @@ export default function App() {
                       </View>
                     </Pressable>
                   </View>
-                </>
+                </ScrollView>
               ) : null}
             </View>
           </View>
@@ -1626,6 +1667,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.display,
     fontWeight: '900',
     fontSize: 15,
+    flexShrink: 1,
   },
   topBarIdentity: {
     flexDirection: 'row',
@@ -1665,6 +1707,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: fonts.display,
     fontWeight: '800',
+    minWidth: 0,
   },
   topBarRole: {
     color: colors.textSecondary,
@@ -1927,6 +1970,8 @@ const styles = StyleSheet.create({
     fontFamily: fonts.display,
     fontSize: 14,
     fontWeight: '900',
+    flexShrink: 1,
+    textAlign: 'center',
   },
   adminAccessNotice: {
     backgroundColor: colors.backgroundTint,
@@ -1983,6 +2028,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     minHeight: 48,
+    width: '100%',
   },
   formCard: {
     width: '100%',
@@ -2017,6 +2063,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '900',
     lineHeight: 26,
+    flexShrink: 1,
+  },
+  sectionTitleCompact: {
+    fontSize: 19,
+    lineHeight: 24,
   },
   sectionEyebrow: {
     color: colors.accent,
@@ -2030,6 +2081,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     gap: spacing.md,
+    flexWrap: 'wrap',
+  },
+  panelHeaderCompact: {
+    gap: spacing.sm,
   },
   panelAction: {
     color: colors.textMuted,
@@ -2129,6 +2184,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadow.card,
   },
+  headerPanelCompact: {
+    padding: spacing.lg,
+  },
   headerTopLine: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2142,6 +2200,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
+    flexShrink: 1,
   },
   headerBadge: {
     backgroundColor: colors.accentSoft,
@@ -2153,6 +2212,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
+    flexShrink: 0,
   },
   headerBadgeText: {
     color: colors.accentSoftText,
@@ -2166,6 +2226,10 @@ const styles = StyleSheet.create({
     fontSize: 30,
     fontWeight: '900',
     lineHeight: 38,
+  },
+  headerTitleCompact: {
+    fontSize: 28,
+    lineHeight: 34,
   },
   headerSubtitle: {
     color: colors.textOnStrongMuted,
@@ -2214,7 +2278,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   tabLabelCompact: {
-    fontSize: 11,
+    fontSize: 10,
   },
   tabLabelActive: {
     color: colors.accentHover,
@@ -2465,6 +2529,7 @@ const styles = StyleSheet.create({
   cardFooterButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: spacing.xs,
     backgroundColor: colors.backgroundTint,
     borderWidth: 1,
@@ -2472,6 +2537,10 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
+  },
+  cardFooterButtonCompact: {
+    alignSelf: 'stretch',
+    minHeight: 44,
   },
   cardFooterText: {
     color: colors.textMuted,
@@ -2527,6 +2596,7 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontFamily: fonts.body,
     marginTop: 2,
+    lineHeight: 20,
   },
   chatCard: {
     width: '100%',
@@ -2589,6 +2659,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.display,
     fontWeight: '800',
     fontSize: 12,
+    flexShrink: 1,
   },
   rejectPill: {
     backgroundColor: colors.errorSoft,
@@ -2813,12 +2884,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.xs,
+    minWidth: 0,
   },
   primaryButtonText: {
     color: colors.textOnAccent,
     fontFamily: fonts.display,
     fontWeight: '800',
     fontSize: 15,
+    flexShrink: 1,
+    textAlign: 'center',
   },
   secondaryActionButton: {
     backgroundColor: colors.backgroundTint,
@@ -2835,6 +2909,8 @@ const styles = StyleSheet.create({
     fontFamily: fonts.display,
     fontSize: 13,
     fontWeight: '900',
+    flexShrink: 1,
+    textAlign: 'center',
   },
   logoutButton: {
     backgroundColor: colors.error,
@@ -2891,9 +2967,21 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: spacing.md,
   },
+  managementCardCompact: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: spacing.sm,
+  },
   managementSide: {
     alignItems: 'flex-end',
     gap: spacing.xs,
+  },
+  managementSideCompact: {
+    alignItems: 'flex-start',
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
   },
   managementAmount: {
     color: colors.textPrimary,
@@ -2905,6 +2993,7 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontFamily: fonts.body,
     marginTop: 2,
+    lineHeight: 20,
   },
   statusBadge: {
     borderRadius: radii.pill,
@@ -2921,6 +3010,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.display,
     fontWeight: '800',
     fontSize: 11,
+    flexShrink: 1,
   },
   statusBadgeOpen: {
     backgroundColor: colors.successSoft,
@@ -2995,10 +3085,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  modalCardCompact: {
+    padding: spacing.md,
+  },
+  modalScrollContent: {
+    gap: spacing.sm,
+    paddingBottom: spacing.lg,
+  },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: spacing.md,
+  },
+  modalHeaderCompact: {
+    flexDirection: 'column',
+    gap: spacing.sm,
   },
   modalTitle: {
     color: colors.textPrimary,
@@ -3006,6 +3107,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '800',
     marginTop: spacing.xs,
+    lineHeight: 30,
   },
   closeText: {
     color: colors.accent,
@@ -3016,11 +3118,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
+    alignSelf: 'flex-start',
   },
   modalMeta: {
     color: colors.textMuted,
     fontFamily: fonts.body,
     fontSize: 14,
+    lineHeight: 20,
   },
   modalDescription: {
     color: colors.textSecondary,
@@ -3064,11 +3168,19 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   modalFooter: {
-    marginTop: 'auto',
+    marginTop: spacing.md,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: spacing.md,
+  },
+  modalFooterCompact: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+  },
+  modalFooterPoster: {
+    minWidth: 0,
+    flexShrink: 1,
   },
   modalFooterTitle: {
     color: colors.textMuted,
@@ -3086,5 +3198,9 @@ const styles = StyleSheet.create({
     fontFamily: fonts.display,
     fontWeight: '800',
     marginTop: spacing.xs,
+    lineHeight: 20,
+  },
+  modalPrimaryButtonCompact: {
+    alignSelf: 'stretch',
   },
 });
