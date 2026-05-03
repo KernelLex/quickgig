@@ -126,7 +126,14 @@ const IconGlyph = ({
 export default function App() {
   const { width } = useWindowDimensions();
   const isWideLayout = width >= 900;
-  const compactContentWidth = { width: Math.max(width - spacing.lg * 2, 0) };
+  const compactContentWidth = useMemo(
+    () => ({
+      width: '100%' as const,
+      maxWidth: Math.min(width, 640),
+      alignSelf: 'center' as const,
+    }),
+    [width],
+  );
   const [accounts, setAccounts] = useState<SeedAccount[]>(() => appUsers);
   const [authUser, setAuthUser] = useState<AppUser | null>(null);
   const [loginStep, setLoginStep] = useState<LoginStep>('role');
@@ -857,27 +864,29 @@ export default function App() {
   );
 
   const renderRequestConversation = (request: ApplicationRequest, canModerate: boolean) => (
-    <View style={styles.chatCard}>
-      <View style={styles.chatHeader}>
-        <View style={styles.activityContent}>
+    <View style={[styles.chatCard, !isWideLayout && styles.chatCardCompact]}>
+      <View style={[styles.chatHeader, !isWideLayout && styles.chatHeaderCompact]}>
+        <View style={[styles.activityContent, !isWideLayout && styles.chatHeaderContentCompact]}>
           <Text style={styles.requestGigTitle}>{request.gigTitle}</Text>
           <Text style={styles.chatMeta}>
             {request.workerName}
           </Text>
         </View>
-        {renderStatusBadge(request.status)}
-        {canModerate && request.status === 'Pending' ? (
-          <View style={styles.chatDecisionRow}>
-            <Pressable style={styles.acceptButton} onPress={() => handleRequestDecision(request.id, 'Accepted')}>
-              <IconGlyph name="checkmark-outline" size={14} color={colors.textPrimary} />
-              <Text style={styles.chatDecisionText}>Accept</Text>
-            </Pressable>
-            <Pressable style={styles.rejectPill} onPress={() => handleRequestDecision(request.id, 'Rejected')}>
-              <IconGlyph name="close-outline" size={14} color={colors.textPrimary} />
-              <Text style={styles.chatDecisionText}>Reject</Text>
-            </Pressable>
-          </View>
-        ) : null}
+        <View style={[styles.chatActions, !isWideLayout && styles.chatActionsCompact]}>
+          {renderStatusBadge(request.status)}
+          {canModerate && request.status === 'Pending' ? (
+            <View style={[styles.chatDecisionRow, !isWideLayout && styles.chatDecisionRowCompact]}>
+              <Pressable style={styles.acceptButton} onPress={() => handleRequestDecision(request.id, 'Accepted')}>
+                <IconGlyph name="checkmark-outline" size={14} color={colors.textPrimary} />
+                <Text style={styles.chatDecisionText}>Accept</Text>
+              </Pressable>
+              <Pressable style={styles.rejectPill} onPress={() => handleRequestDecision(request.id, 'Rejected')}>
+                <IconGlyph name="close-outline" size={14} color={colors.textPrimary} />
+                <Text style={styles.chatDecisionText}>Reject</Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
       </View>
 
       <View style={styles.conversationFeed}>
@@ -1682,12 +1691,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   appScrollContent: {
+    width: '100%',
     padding: spacing.lg,
     paddingTop: 92,
     paddingBottom: spacing.xxxl,
     gap: spacing.lg,
     maxWidth: 980,
-    alignSelf: 'stretch',
+    alignSelf: 'center',
   },
   appScrollContentWide: {
     width: '78%',
@@ -1975,6 +1985,8 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   formCard: {
+    width: '100%',
+    alignSelf: 'center',
     backgroundColor: colors.surface,
     borderRadius: radii.xl,
     padding: spacing.lg,
@@ -1984,6 +1996,8 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   surfaceCard: {
+    width: '100%',
+    alignSelf: 'center',
     backgroundColor: colors.surface,
     borderRadius: radii.xl,
     padding: spacing.lg,
@@ -1993,6 +2007,8 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   sectionStack: {
+    width: '100%',
+    alignSelf: 'center',
     gap: spacing.md,
   },
   sectionTitle: {
@@ -2103,6 +2119,8 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   headerPanel: {
+    width: '100%',
+    alignSelf: 'center',
     backgroundColor: colors.cardStrongMuted,
     borderRadius: radii.xl,
     padding: spacing.xl,
@@ -2156,6 +2174,8 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   tabRow: {
+    width: '100%',
+    alignSelf: 'center',
     flexDirection: 'row',
     backgroundColor: colors.backgroundTint,
     borderRadius: radii.pill,
@@ -2215,6 +2235,8 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   searchPanel: {
+    width: '100%',
+    alignSelf: 'center',
     backgroundColor: colors.surface,
     borderRadius: radii.xl,
     padding: spacing.lg,
@@ -2236,6 +2258,8 @@ const styles = StyleSheet.create({
     color: colors.accentHover,
   },
   jobCard: {
+    width: '100%',
+    alignSelf: 'center',
     backgroundColor: colors.surface,
     borderRadius: radii.xl,
     padding: spacing.lg,
@@ -2461,9 +2485,13 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   messageLayout: {
+    width: '100%',
+    alignSelf: 'center',
     gap: spacing.md,
   },
   messageListCard: {
+    width: '100%',
+    alignSelf: 'center',
     backgroundColor: colors.surface,
     borderRadius: radii.xl,
     padding: spacing.lg,
@@ -2501,6 +2529,8 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   chatCard: {
+    width: '100%',
+    alignSelf: 'center',
     backgroundColor: colors.surface,
     borderRadius: radii.xl,
     padding: spacing.lg,
@@ -2509,6 +2539,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadow.card,
   },
+  chatCardCompact: {
+    padding: spacing.md,
+  },
   chatHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -2516,14 +2549,40 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     flexWrap: 'wrap',
   },
+  chatHeaderCompact: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: spacing.sm,
+  },
+  chatHeaderContentCompact: {
+    flex: 0,
+    width: '100%',
+  },
   chatMeta: {
     color: colors.textMuted,
     fontFamily: fonts.body,
     marginTop: spacing.xs,
   },
+  chatActions: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'flex-end',
+    gap: spacing.sm,
+    flexShrink: 0,
+    flexWrap: 'wrap',
+  },
+  chatActionsCompact: {
+    alignSelf: 'stretch',
+    justifyContent: 'space-between',
+  },
   chatDecisionRow: {
     flexDirection: 'row',
     gap: spacing.xs,
+    flexShrink: 0,
+  },
+  chatDecisionRowCompact: {
+    justifyContent: 'flex-end',
+    flexWrap: 'wrap',
   },
   chatDecisionText: {
     color: colors.textPrimary,
@@ -2590,6 +2649,8 @@ const styles = StyleSheet.create({
     minHeight: 84,
   },
   emptyChatCard: {
+    width: '100%',
+    alignSelf: 'center',
     backgroundColor: colors.surface,
     borderRadius: radii.xl,
     padding: spacing.xl,
@@ -2600,6 +2661,8 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   emptyStateCard: {
+    width: '100%',
+    alignSelf: 'center',
     backgroundColor: colors.surface,
     borderRadius: radii.xl,
     padding: spacing.xl,
@@ -2852,6 +2915,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    flexShrink: 0,
   },
   statusBadgeText: {
     fontFamily: fonts.display,
@@ -2895,6 +2959,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.display,
     fontSize: 18,
     fontWeight: '800',
+    lineHeight: 23,
   },
   toast: {
     position: 'absolute',
